@@ -32,16 +32,24 @@
             </label>
         </div>
 
-        <div class="flex items-center justify-end mt-4">
+        <div class="flex mt-4">
             @if (Route::has('password.request'))
-                <a class="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800" href="{{ route('password.request') }}">
+                <a class="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800" href="{{ route('password.request') }}">
                     {{ __('Forgot your password?') }}
                 </a>
             @endif
 
-            <x-primary-button class="ms-3">
+        </div>
+
+        <div class="flex mt-4">
+            <x-primary-button class="w-full">
                 {{ __('Log in') }}
             </x-primary-button>
         </div>
     </form>
+
+    <flux:separator text="or" class="my-4 mt-6" />
+        <flux:button href="{{ route('angel.login') }}" class="w-full"  icon:trailing="arrow-up-right">
+                Login to AngelOne
+        </flux:button>
 </x-guest-layout>
