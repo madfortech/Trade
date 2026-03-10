@@ -30,54 +30,52 @@ class AngelLoginController extends Controller
     }
 
     public function login(Request $request)
-    {
-        try {
-            // 1. Generate TOTP
-            $google2fa = new Google2FA();
-            $google2fa->setEnforceGoogleAuthenticatorCompatibility(false);
+{
+    try {
+        $google2fa = new Google2FA();
+        $google2fa->setEnforceGoogleAuthenticatorCompatibility(false);
 
-            $secret = env('ANGEL_TOTP_SECRET');
-            $secret = strtoupper(str_replace([' ', '-'], '', $secret));
-            $totp = $google2fa->getCurrentOtp($secret);
+        // Direct key daal rahe hain test ke liye
+        $secret = "KBUFFEP4QAVYBR6OPRPWZSYORI"; 
+        
+        // TOTP generate karein
+        $totp = $google2fa->getCurrentOtp($secret);
 
-            // 2. API Request
-            $response = Http::withHeaders($this->getHeaders($request))
-                ->post($this->baseUrl . "/rest/auth/angelbroking/user/v1/loginByPassword", [
-                    'clientcode' => env('ANGEL_CLIENT_ID'),
-                    'password'   => env('ANGEL_PASSWORD'),
-                    'totp'       => $totp,
-                ]);
+        $response = Http::withHeaders([
+            'Content-Type'      => 'application/json',
+            'Accept'            => 'application/json',
+            'X-UserType'        => 'USER',
+            'X-SourceID'        => 'WEB',
+            'X-ClientLocalIP'   => '127.0.0.1',
+            'X-ClientPublicIP'  => '127.0.0.1',
+            'X-MACAddress'      => '00-00-00-00-00-00',
+            'X-PrivateKey'      => "ivXPeqhN" // Direct API Key
+        ])->post($this->baseUrl . "/rest/auth/angelbroking/user/v1/loginByPassword", [
+            'clientcode' => "JANAK4986",
+            'password'   => "1989",
+            'totp'       => $totp,
+        ]);
 
-            $resData = $response->json();
+        $resData = $response->json();
 
-            // 3. Handle Success
-            if (isset($resData['status']) && $resData['status'] === true) {
-                $data = $resData['data'];
-                $clientCode = env('ANGEL_CLIENT_ID');
+        if (isset($resData['status']) && $resData['status'] === true) {
+            // Session save karna
+            session([
+                'angel_jwt' => $resData['data']['jwtToken'],
+                'clientCode' => "JANAK4986"
+            ]);
+            session()->save(); 
 
-                // Consistent Storage for Middleware
-                // We store in session for the user's specific browser tab
-                session([
-                    'angel_jwt'   => $data['jwtToken'],
-                    'feedToken'   => $data['feedToken'],
-                    'clientCode'  => $clientCode,
-                    'angel_profile' => $data
-                ]);
-
-                // Store in Cache as a backup/global reference (User-Specific Key)
-                $cacheKey = "angel_session_" . $clientCode;
-                Cache::put($cacheKey, $data['jwtToken'], now()->addHours(12));
-                
-                return redirect()->route('angel.home')->with('success', 'Angel One connected successfully!'); 
-            }
-
-            // 4. Handle API Logic Failures
-            return redirect()->back()->with('error', 'Angel API Error: ' . ($resData['message'] ?? 'Check credentials'));
-
-        } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Login Exception: ' . $e->getMessage());
+            return redirect()->route('angel.home'); 
         }
+
+        // Agar fail ho toh error screen par dikhega, loop nahi banega
+        dd("Login Failed!", $resData, "TOTP used: " . $totp);
+
+    } catch (\Exception $e) {
+        return "Error: " . $e->getMessage();
     }
+}
 
     public function logout(Request $request)
     {

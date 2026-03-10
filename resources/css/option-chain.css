@@ -1,0 +1,15 @@
+.ind-btn.ind-off{opacity:0.35;filter:grayscale(0.8);}
+.ind-btn.ind-off .ind-dot{background:#374151!important;}
+.ind-btn.ind-off .ind-state{color:#6b7280!important;}
+
+@keyframes trendGlow{
+0%,100%{text-shadow:0 0 8px currentColor;}
+50%{text-shadow:0 0 20px currentColor,0 0 40px currentColor;}
+}
+.trend-glow{animation:trendGlow 2s infinite;}
+
+@keyframes ltpFlash{
+0%{background:rgba(99,102,241,0.4);}
+100%{background:transparent;}
+}
+.ltp-flash{animation:ltpFlash 0.5s ease-out;}

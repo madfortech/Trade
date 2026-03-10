@@ -39,7 +39,7 @@
 
             <!-- Sensex -->
              <div class="py-2">
-              <flux:link href="#" class="font-bold text-lg">
+              <flux:link href="{{ route('angel.sensex.option-chain') }}" class="font-bold text-lg">
                   SENSEX: <span id="sensex-ltp">0.00</span>
                   <div class="text-[10px] text-gray-400">
                       Low: <span id="sensex-low">---</span> 

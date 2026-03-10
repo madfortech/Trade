@@ -1,13 +1,27 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\AngelOneController;
-use App\Http\Controllers\HistoricalOIController;
+use App\Http\Controllers\Admin\AdminController;
+use Illuminate\Support\Facades\Route; 
+use Carbon\Carbon;
+use App\Http\Controllers\AIAnalysisController;
+use App\Http\Controllers\FaqController;
 
 
 Route::get('/', function () {
     return view('welcome');
+});
+
+Route::get('/contact', function () {
+    return view('contact');
+})->name('contact');
+
+Route::get('/faq', [FaqController::class, 'index'])->name('faq');
+
+// Admin routes
+Route::group(['middleware' => ['role:admin']], function () { 
+    Route::get('/admin', [AdminController::class, 'index'])->name('admin');
+    Route::get('/faq/create', [FaqController::class, 'create'])->name('faq.create');
 });
 
 
@@ -23,6 +37,9 @@ Route::middleware('auth')->group(function () {
 
 
 
+
+
 require __DIR__.'/auth.php';
 
 require __DIR__.'/angel.php';
+

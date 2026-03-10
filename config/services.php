@@ -34,5 +34,9 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+   
+    'angel' => [
+        'totp_secret' => env('ANGEL_TOTP_SECRET'),
+    ],
 
 ];
