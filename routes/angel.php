@@ -2,10 +2,8 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AngelLoginController;
-use App\Http\Controllers\AngelProfileController;
 use App\Http\Controllers\NiftyController;
 use App\Http\Controllers\NiftyOptionDataController;
-use App\Http\Controllers\CrudeOptionDataController;
 use App\Http\Controllers\AIAnalysisController;
 use App\Http\Controllers\SensexOptionDataController;
 
@@ -15,10 +13,6 @@ Route::post('/logout', [AngelLoginController::class, 'logout'])->name('logout');
 
 Route::middleware(['angel.auth'])->group(function () {
     Route::group(['prefix' => 'angel', 'as' => 'angel.'], function () {
-
-        // Dashboard & Market
-        Route::get('/home',        [AngelProfileController::class, 'home'])         ->name('home');
-        Route::get('/market-data', [AngelProfileController::class, 'getMarketData'])->name('market.json');
 
         // Nifty Chart
         Route::get('/nifty',            [NiftyController::class, 'chart'])         ->name('nifty.chart');
@@ -30,11 +24,6 @@ Route::middleware(['angel.auth'])->group(function () {
         Route::get('/nifty-option-chain',  [NiftyOptionDataController::class, 'index'])             ->name('nifty.option-chain');
         Route::get('/chain-refresh',       [NiftyOptionDataController::class, 'refreshChainData'])  ->name('chain.refresh');
         Route::get('/candle-data',         [NiftyOptionDataController::class, 'getCandleData'])     ->name('angel.candle.data');
-
-        // Crude Oil
-        Route::get('/crude-option',         [CrudeOptionDataController::class, 'index'])           ->name('crude-option');
-        Route::get('/crude-option/refresh', [CrudeOptionDataController::class, 'refreshCrudeData'])->name('crude-option.refresh');
-        Route::get('/crude-chart',          [CrudeOptionDataController::class, 'chart'])           ->name('crude-chart');
 
         // ✅ Sensex Option Chain — sahi routes, koi double prefix nahi
         Route::get('/sensex-option-chain',  [SensexOptionDataController::class, 'index'])           ->name('sensex.option-chain');

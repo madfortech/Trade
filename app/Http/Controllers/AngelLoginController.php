@@ -66,7 +66,7 @@ class AngelLoginController extends Controller
             ]);
             session()->save(); 
 
-            return redirect()->route('angel.home'); 
+            return redirect()->route('angel.option-data'); 
         }
 
         // Agar fail ho toh error screen par dikhega, loop nahi banega
