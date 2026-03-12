@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -24,7 +25,7 @@ class AIAnalysisController extends Controller
     {
         try {
             if (empty($this->apiKey)) {
-                return response()->json(['success' => false, 'message' => 'GROQ_API_KEY .env mein set nahi hai!'], 500);
+                return $this->missingApiKeyResponse('message', 500);
             }
 
             $interval      = $request->input('interval', '5m');
@@ -32,10 +33,10 @@ class AIAnalysisController extends Controller
             $candleSummary = $this->_buildCandleSummary($candles);
 
             // PHP side pe support/resistance calculate karo — AI pe depend mat karo
-            $levels       = $this->_calcSupportResistance($candles);
-            $supportStr   = $levels['support']    ? number_format($levels['support'], 2)    : 'N/A';
-            $resistStr    = $levels['resistance'] ? number_format($levels['resistance'], 2) : 'N/A';
-            $currentPrice = $levels['current']    ? number_format($levels['current'], 2)    : 'N/A';
+            $levels       = $this->formattedLevels($candles, 'N/A');
+            $supportStr   = $levels['support'];
+            $resistStr    = $levels['resistance'];
+            $currentPrice = $levels['current'];
 
             $systemPrompt = <<<SYS
 You are an expert NIFTY 50 index trader and technical analyst.
@@ -99,8 +100,7 @@ PROMPT;
             return response()->json(['success' => true, 'data' => $data]);
 
         } catch (\Exception $e) {
-            Log::error('AIAnalysis::niftyAnalyze — ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            return $this->logAndErrorResponse('niftyAnalyze', $e, 'message');
         }
     }
 
@@ -111,7 +111,7 @@ PROMPT;
     {
         try {
             if (empty($this->apiKey)) {
-                return response()->json(['success' => false, 'reply' => '❌ GROQ_API_KEY .env mein set nahi hai!']);
+                return $this->missingApiKeyResponse('reply');
             }
 
             $message       = $request->input('message', '');
@@ -119,12 +119,14 @@ PROMPT;
             $candles       = $request->input('candles', []);
             $candleSummary = $this->_buildCandleSummary($candles);
 
-            if (empty($message)) return response()->json(['reply' => 'Kuch poochho!']);
+            if (empty($message)) {
+                return response()->json(['reply' => 'Kuch poochho!']);
+            }
 
-            $levels       = $this->_calcSupportResistance($candles);
-            $currentPrice = $levels['current']    ? number_format($levels['current'], 2)    : '—';
-            $support      = $levels['support']    ? number_format($levels['support'], 2)    : '—';
-            $resistance   = $levels['resistance'] ? number_format($levels['resistance'], 2) : '—';
+            $levels       = $this->formattedLevels($candles);
+            $currentPrice = $levels['current'];
+            $support      = $levels['support'];
+            $resistance   = $levels['resistance'];
 
             $systemPrompt = <<<SYS
 You are an expert NIFTY 50 trader. Reply in Hinglish (Hindi+English mix), 3-5 lines max.
@@ -143,8 +145,7 @@ PROMPT;
             return response()->json(['success' => true, 'reply' => $reply]);
 
         } catch (\Exception $e) {
-            Log::error('AIAnalysis::niftyChat — ' . $e->getMessage());
-            return response()->json(['success' => false, 'reply' => '❌ Error: ' . $e->getMessage()]);
+            return $this->logAndErrorResponse('niftyChat', $e, 'reply', false);
         }
     }
 
@@ -155,7 +156,7 @@ PROMPT;
     {
         try {
             if (empty($this->apiKey)) {
-                return response()->json(['success' => false, 'message' => 'GROQ_API_KEY .env mein set nahi hai!'], 500);
+                return $this->missingApiKeyResponse('message', 500);
             }
 
             $strike        = $request->input('strike');
@@ -165,10 +166,10 @@ PROMPT;
             $candles       = $request->input('candles', []);
             $candleSummary = $this->_buildCandleSummary($candles);
 
-            $levels       = $this->_calcSupportResistance($candles);
-            $currentPrice = $levels['current']    ? number_format($levels['current'], 2)    : '—';
-            $support      = $levels['support']    ? number_format($levels['support'], 2)    : '—';
-            $resistance   = $levels['resistance'] ? number_format($levels['resistance'], 2) : '—';
+            $levels       = $this->formattedLevels($candles);
+            $currentPrice = $levels['current'];
+            $support      = $levels['support'];
+            $resistance   = $levels['resistance'];
 
             $systemPrompt = "You are an expert NSE options trader. Return ONLY valid JSON — no markdown, no backticks. Base analysis strictly on provided candle data.";
 
@@ -202,8 +203,7 @@ PROMPT;
             return response()->json(['success' => true, 'data' => $data]);
 
         } catch (\Exception $e) {
-            Log::error('AIAnalysis::analyze — ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            return $this->logAndErrorResponse('analyze', $e, 'message');
         }
     }
 
@@ -214,7 +214,7 @@ PROMPT;
     {
         try {
             if (empty($this->apiKey)) {
-                return response()->json(['success' => false, 'reply' => '❌ GROQ_API_KEY .env mein set nahi hai!']);
+                return $this->missingApiKeyResponse('reply');
             }
 
             $message       = $request->input('message', '');
@@ -225,12 +225,14 @@ PROMPT;
             $candles       = $context['candles'] ?? [];
             $candleSummary = $this->_buildCandleSummary($candles);
 
-            if (empty($message)) return response()->json(['reply' => 'Kuch poochho bhai!']);
+            if (empty($message)) {
+                return response()->json(['reply' => 'Kuch poochho bhai!']);
+            }
 
-            $levels       = $this->_calcSupportResistance($candles);
-            $currentPrice = $levels['current'] ? number_format($levels['current'], 2) : '—';
-            $support      = $levels['support']    ? number_format($levels['support'], 2)    : '—';
-            $resistance   = $levels['resistance'] ? number_format($levels['resistance'], 2) : '—';
+            $levels       = $this->formattedLevels($candles);
+            $currentPrice = $levels['current'];
+            $support      = $levels['support'];
+            $resistance   = $levels['resistance'];
 
             $systemPrompt = "You are an expert NSE options trader. Reply in Hinglish (Hindi+English), 3-5 lines. HTML: <b>, <br>. Use real price numbers from data. Answer directly.";
 
@@ -245,19 +247,18 @@ PROMPT;
             return response()->json(['success' => true, 'reply' => $reply]);
 
         } catch (\Exception $e) {
-            Log::error('AIAnalysis::chartChat — ' . $e->getMessage());
-            return response()->json(['success' => false, 'reply' => '❌ Error: ' . $e->getMessage()]);
+            return $this->logAndErrorResponse('chartChat', $e, 'reply', false);
         }
     }
 
     // ════════════════════════════════════════════════════════════════════════
     // POST /angel/sensex-ai-analyze
     // ════════════════════════════════════════════════════════════════════════
-    public function sensexAnalyze(Request $request): \Illuminate\Http\JsonResponse
+    public function sensexAnalyze(Request $request): JsonResponse
     {
         try {
             if (empty($this->apiKey)) {
-                return response()->json(['success' => false, 'message' => 'GROQ_API_KEY .env mein set nahi hai!'], 500);
+                return $this->missingApiKeyResponse('message', 500);
             }
 
             $label         = $request->input('label', 'SENSEX Option');
@@ -268,9 +269,9 @@ PROMPT;
             $interval      = $request->input('interval', '5m');
             $spot          = $request->input('spot', '—');
 
-            $levels     = $this->_calcSupportResistance($candles);
-            $support    = $levels['support']    ? number_format($levels['support'], 2)    : 'N/A';
-            $resistance = $levels['resistance'] ? number_format($levels['resistance'], 2) : 'N/A';
+            $levels     = $this->formattedLevels($candles, 'N/A');
+            $support    = $levels['support'];
+            $resistance = $levels['resistance'];
 
             $systemPrompt = "You are an expert BSE Sensex options trader. Return ONLY valid JSON — no markdown, no backticks. Base analysis strictly on provided candle data.";
 
@@ -309,26 +310,27 @@ PROMPT;
             return response()->json(['success' => true, 'data' => $data]);
 
         } catch (\Exception $e) {
-            Log::error('AIAnalysis::sensexAnalyze — ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            return $this->logAndErrorResponse('sensexAnalyze', $e, 'message');
         }
     }
 
     // ════════════════════════════════════════════════════════════════════════
     // POST /angel/sensex-chat
     // ════════════════════════════════════════════════════════════════════════
-    public function sensexChat(Request $request): \Illuminate\Http\JsonResponse
+    public function sensexChat(Request $request): JsonResponse
     {
         try {
             if (empty($this->apiKey)) {
-                return response()->json(['success' => false, 'reply' => '❌ GROQ_API_KEY .env mein set nahi hai!']);
+                return $this->missingApiKeyResponse('reply');
             }
 
             $message = $request->input('message', '');
             $history = $request->input('history', []);
             $context = $request->input('context', '');
 
-            if (empty($message)) return response()->json(['reply' => 'Kuch poochho!']);
+            if (empty($message)) {
+                return response()->json(['reply' => 'Kuch poochho!']);
+            }
 
             $systemPrompt = <<<PROMPT
 Tum ek expert Sensex (BSE) options trader aur analyst ho.
@@ -352,19 +354,18 @@ PROMPT;
             return response()->json(['success' => true, 'reply' => $reply]);
 
         } catch (\Exception $e) {
-            Log::error('AIAnalysis::sensexChat — ' . $e->getMessage());
-            return response()->json(['success' => false, 'reply' => '❌ Error: ' . $e->getMessage()]);
+            return $this->logAndErrorResponse('sensexChat', $e, 'reply', false);
         }
     }
 
     // ════════════════════════════════════════════════════════════════════════
     // POST /angel/sensex-chart-chat
     // ════════════════════════════════════════════════════════════════════════
-    public function sensexChartChat(Request $request): \Illuminate\Http\JsonResponse
+    public function sensexChartChat(Request $request): JsonResponse
     {
         try {
             if (empty($this->apiKey)) {
-                return response()->json(['success' => false, 'reply' => '❌ GROQ_API_KEY .env mein set nahi hai!']);
+                return $this->missingApiKeyResponse('reply');
             }
 
             $message       = $request->input('message', '');
@@ -375,12 +376,14 @@ PROMPT;
             $candles       = $context['candles'] ?? [];
             $candleSummary = $this->_buildCandleSummary($candles);
 
-            if (empty($message)) return response()->json(['reply' => 'Kuch poochho!']);
+            if (empty($message)) {
+                return response()->json(['reply' => 'Kuch poochho!']);
+            }
 
-            $levels       = $this->_calcSupportResistance($candles);
-            $currentPrice = $levels['current'] ? number_format($levels['current'], 2) : '—';
-            $support      = $levels['support']    ? number_format($levels['support'], 2)    : '—';
-            $resistance   = $levels['resistance'] ? number_format($levels['resistance'], 2) : '—';
+            $levels       = $this->formattedLevels($candles);
+            $currentPrice = $levels['current'];
+            $support      = $levels['support'];
+            $resistance   = $levels['resistance'];
             $spot         = $context['spot']     ?? '—';
             $interval     = $context['interval'] ?? '5m';
 
@@ -398,9 +401,39 @@ PROMPT;
             return response()->json(['success' => true, 'reply' => $reply]);
 
         } catch (\Exception $e) {
-            Log::error('AIAnalysis::sensexChartChat — ' . $e->getMessage());
-            return response()->json(['success' => false, 'reply' => '❌ Error: ' . $e->getMessage()]);
+            return $this->logAndErrorResponse('sensexChartChat', $e, 'reply', false);
         }
+    }
+
+    private function missingApiKeyResponse(string $field, int $status = 200): JsonResponse
+    {
+        return response()->json(['success' => false, $field => '❌ GROQ_API_KEY .env mein set nahi hai!'], $status);
+    }
+
+    private function formattedLevels(array $candles, string $fallback = '—'): array
+    {
+        $levels = $this->_calcSupportResistance($candles);
+
+        return [
+            'support' => $this->formatNumber($levels['support'], $fallback),
+            'resistance' => $this->formatNumber($levels['resistance'], $fallback),
+            'current' => $this->formatNumber($levels['current'], $fallback),
+        ];
+    }
+
+    private function formatNumber(?float $value, string $fallback): string
+    {
+        return $value ? number_format($value, 2) : $fallback;
+    }
+
+    private function logAndErrorResponse(string $method, \Exception $e, string $field, bool $withServerErrorCode = true): JsonResponse
+    {
+        Log::error("AIAnalysis::{$method} — {$e->getMessage()}");
+
+        return response()->json(
+            ['success' => false, $field => $field === 'reply' ? '❌ Error: ' . $e->getMessage() : $e->getMessage()],
+            $withServerErrorCode ? 500 : 200
+        );
     }
 
     // ════════════════════════════════════════════════════════════════════════
