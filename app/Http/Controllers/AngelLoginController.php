@@ -4,8 +4,6 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Session;
-use Illuminate\Support\Facades\Cache;
 use PragmaRX\Google2FA\Google2FA;
 
 class AngelLoginController extends Controller
@@ -76,17 +74,4 @@ class AngelLoginController extends Controller
         return "Error: " . $e->getMessage();
     }
 }
-
-    public function logout(Request $request)
-    {
-        $clientCode = session('clientCode');
-        
-        if($clientCode) {
-            Cache::forget("angel_session_" . $clientCode);
-        }
-        
-        $request->session()->forget(['angel_jwt', 'feedToken', 'clientCode', 'angel_profile']);
-        
-        return redirect()->route('angel.login')->with('success', 'Angel One Disconnected');
-    }
 }
