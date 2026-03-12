@@ -5,7 +5,6 @@ use App\Http\Controllers\AngelLoginController;
 use App\Http\Controllers\AngelProfileController;
 use App\Http\Controllers\NiftyController;
 use App\Http\Controllers\NiftyOptionDataController;
-use App\Http\Controllers\CrudeOptionDataController;
 use App\Http\Controllers\AIAnalysisController;
 use App\Http\Controllers\SensexOptionDataController;
 
@@ -31,16 +30,10 @@ Route::middleware(['angel.auth'])->group(function () {
         Route::get('/chain-refresh',       [NiftyOptionDataController::class, 'refreshChainData'])  ->name('chain.refresh');
         Route::get('/candle-data',         [NiftyOptionDataController::class, 'getCandleData'])     ->name('angel.candle.data');
 
-        // Crude Oil
-        Route::get('/crude-option',         [CrudeOptionDataController::class, 'index'])           ->name('crude-option');
-        Route::get('/crude-option/refresh', [CrudeOptionDataController::class, 'refreshCrudeData'])->name('crude-option.refresh');
-        Route::get('/crude-chart',          [CrudeOptionDataController::class, 'chart'])           ->name('crude-chart');
-
-        // ✅ Sensex Option Chain — sahi routes, koi double prefix nahi
-        Route::get('/sensex-option-chain',  [SensexOptionDataController::class, 'index'])           ->name('sensex.option-chain');
-        Route::get('/sensex-candle-data',   [SensexOptionDataController::class, 'getCandleData'])   ->name('sensex.candle.data');
-       
-        Route::get('/sensex-live-tick',     [SensexOptionDataController::class, 'getLiveTick'])     ->name('sensex.live.tick'); // ✅ /angel/sensex-live-tick
+        // Sensex Option Chain
+        Route::get('/sensex-option-chain', [SensexOptionDataController::class, 'index'])->name('sensex.option-chain');
+        Route::get('/sensex-candle-data', [SensexOptionDataController::class, 'getCandleData'])->name('sensex.candle.data');
+        Route::get('/sensex-live-tick', [SensexOptionDataController::class, 'getLiveTick'])->name('sensex.live.tick');
 
         // AI — Nifty
         Route::post('/ai-analyze',       [AIAnalysisController::class, 'analyze'])   ->name('ai.analyze');
@@ -49,18 +42,18 @@ Route::middleware(['angel.auth'])->group(function () {
         Route::post('/nifty-chat',       [AIAnalysisController::class, 'niftyChat'])   ->name('nifty.chat');
 
         // AI — Sensex
-        Route::post('/sensex-ai-analyze', [AIAnalysisController::class, 'sensexAnalyze'])  ->name('sensex.ai.analyze');
-        Route::post('/sensex-chat',       [AIAnalysisController::class, 'sensexChat'])     ->name('sensex.chat');
+        Route::post('/sensex-ai-analyze', [AIAnalysisController::class, 'sensexAnalyze'])->name('sensex.ai.analyze');
+        Route::post('/sensex-chat', [AIAnalysisController::class, 'sensexChat'])->name('sensex.chat');
         Route::post('/sensex-chart-chat', [AIAnalysisController::class, 'sensexChartChat'])->name('sensex.chart.chat');
         Route::get('/sensex-chain-refresh', [SensexOptionDataController::class, 'chainRefresh'])->name('sensex.chain.refresh');
-       Route::get('/sensex-debug-tokens', [SensexOptionDataController::class, 'debugTokens'])->name('sensex.debug.tokens');
-            Route::get('/sensex-debug',        [SensexOptionDataController::class, 'debug'])       ->name('sensex.debug');
+        Route::get('/sensex-debug-tokens', [SensexOptionDataController::class, 'debugTokens'])->name('sensex.debug.tokens');
+        Route::get('/sensex-debug', [SensexOptionDataController::class, 'debug'])->name('sensex.debug');
 
-            Route::get('/sensex-fix-spot', function() {
-    // Manually real spot cache mein daalo
-    \Illuminate\Support\Facades\Cache::put('sensex_spot_last', 78918.9, now()->addHours(8));
-    return response()->json(['done' => true, 'spot_set' => 78918.9]);
-});
+        Route::get('/sensex-fix-spot', function () {
+            \Illuminate\Support\Facades\Cache::put('sensex_spot_last', 78918.9, now()->addHours(8));
+
+            return response()->json(['done' => true, 'spot_set' => 78918.9]);
+        });
 
     });
 });
