@@ -10,6 +10,7 @@ export default defineConfig({
                 'resources/css/option-chain.css',   
                 'resources/js/option-chain.js', 
                 'resources/js/option-chain-chart.js',   
+                'resources/js/nifty-option-data-ai-chat.js',
             ],
             refresh: true,
         }),
