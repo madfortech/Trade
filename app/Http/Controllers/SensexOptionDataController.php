@@ -195,16 +195,17 @@ class SensexOptionDataController extends Controller
         }
 
         $daysBack = match ($interval) {
-            'ONE_MINUTE' => 1,
-            'THREE_MINUTE' => 5,
-            'FIVE_MINUTE' => 5,
+            'ONE_MINUTE'     => 1,
+            'THREE_MINUTE'   => 5,
+            'FIVE_MINUTE'    => 5,
             'FIFTEEN_MINUTE' => 20,
-            'THIRTY_MINUTE' => 30,
-            'ONE_HOUR' => 60,
-            default => 5,
+            'THIRTY_MINUTE'  => 30,
+            'ONE_HOUR'       => 60,
+            default          => 5,
         };
 
-        $fromDate = $lastTrading->copy();
+        // ── Build fromDate skipping weekends ──────────────────────────
+        $fromDate   = $lastTrading->copy();
         $daysSkipped = 0;
         while ($daysSkipped < $daysBack) {
             $fromDate->subDay();
@@ -214,13 +215,15 @@ class SensexOptionDataController extends Controller
         }
         $fromDateStr = $fromDate->format('Y-m-d') . ' 09:15';
 
-        $fromAttempts = [
+        // ── Fallback attempts: computed → -3d → -1d → same day ────────
+        $fromAttempts = array_unique([
             $fromDateStr,
             $lastTrading->copy()->subDays(3)->format('Y-m-d') . ' 09:15',
             $lastTrading->copy()->subDays(1)->format('Y-m-d') . ' 09:15',
-        ];
+            $lastTrading->format('Y-m-d') . ' 09:15',
+        ]);
 
-        $lastError = '';
+        $lastError  = '';
         $lastApiMsg = '';
 
         foreach ($fromAttempts as $fromAttempt) {
@@ -233,35 +236,50 @@ class SensexOptionDataController extends Controller
                 $toDateStr
             );
 
-            $errorcode = $body['errorcode'] ?? $body['errorCode'] ?? '';
-            $apiMsg = $body['message'] ?? '';
+            // ── Normalise Angel One's errorcode field ──────────────────
+            $rawCode  = $body['errorcode'] ?? $body['errorCode'] ?? $body['status'] ?? '';
+            $apiMsg   = trim($body['message'] ?? $body['msg'] ?? '');
 
-            if (!empty($errorcode) && $errorcode !== '0') {
-                $lastError = "Angel error [{$errorcode}]: {$apiMsg}";
+            // Angel returns "0", 0, "SUCCESS", true — treat all as success
+            $isError = !in_array((string) $rawCode, ['0', '', 'SUCCESS', 'true'], true)
+                       || strtolower($apiMsg) === 'invalid token';
+
+            if ($isError) {
+                $lastError  = "Angel error [{$rawCode}]: {$apiMsg}";
                 $lastApiMsg = $apiMsg;
+
+                // Session expired — stop retrying immediately
+                if (in_array(strtolower($apiMsg), ['invalid token', 'session expired'])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Session expired — please login again.',
+                        'data'    => [],
+                    ]);
+                }
                 continue;
             }
 
+            // ── Validate data ──────────────────────────────────────────
             if (!empty($body['data']) && is_array($body['data'])) {
                 return response()->json([
                     'success' => true,
-                    'data' => $body['data'],
-                    'count' => count($body['data']),
+                    'data'    => $body['data'],
+                    'count'   => count($body['data']),
                 ]);
             }
 
-            $lastError = "Empty data | msg: {$apiMsg}";
+            $lastError  = "Empty data | msg: {$apiMsg}";
             $lastApiMsg = $apiMsg;
         }
 
         return response()->json([
             'success' => false,
             'message' => $lastApiMsg ?: $lastError ?: 'No candle data available.',
-            'debug' => [
-                'token' => $symbolToken,
-                'exchange' => $exchange,
-                'interval' => $interval,
-                'todate' => $toDateStr,
+            'debug'   => [
+                'token'        => $symbolToken,
+                'exchange'     => $exchange,
+                'interval'     => $interval,
+                'todate'       => $toDateStr,
                 'last_trading' => $lastTrading->format('Y-m-d'),
             ],
             'data' => [],
@@ -277,21 +295,21 @@ class SensexOptionDataController extends Controller
         }
 
         $symbolToken = trim($request->get('token', ''));
-        $exchange = strtoupper($request->get('exchange', 'BFO'));
+        $exchange    = strtoupper($request->get('exchange', 'BFO'));
 
         if (!$symbolToken) {
             return response()->json(['success' => false, 'message' => 'Token missing']);
         }
 
-        $body = $this->sensexService->fetchLtpQuote($token, $exchange, $symbolToken);
-        $tick = $body['data']['fetched'][0] ?? null;
+        $body    = $this->sensexService->fetchLtpQuote($token, $exchange, $symbolToken);
+        $tick    = $body['data']['fetched'][0] ?? null;
         $unfetch = $body['data']['unfetched'][0] ?? null;
 
         return response()->json([
-            'success' => (bool) $tick,
-            'tick' => $tick,
+            'success'   => (bool) $tick,
+            'tick'      => $tick,
             'unfetched' => $unfetch,
-            'message' => $body['exception'] ?? null,
+            'message'   => $body['exception'] ?? null,
         ]);
     }
 
@@ -304,7 +322,7 @@ class SensexOptionDataController extends Controller
         }
 
         $allExpiries = Cache::get('sensex_expiry_list_v4', []);
-        $expiry = $request->get('expiry', $allExpiries[0] ?? '');
+        $expiry      = $request->get('expiry', $allExpiries[0] ?? '');
 
         $spot = $this->sensexService->getSensexSpotPrice($token);
         if ($spot && $spot > 0) {
@@ -314,14 +332,63 @@ class SensexOptionDataController extends Controller
         }
 
         $strikeMap = Cache::get("sensex_map_{$expiry}", []);
-        $filtered = $this->sensexService->filterAtmStrikes($strikeMap, $spot, 15);
-        $options = $this->sensexService->fetchMarketDataInBulk($token, $filtered);
+        $filtered  = $this->sensexService->filterAtmStrikes($strikeMap, $spot, 15);
+        $options   = $this->sensexService->fetchMarketDataInBulk($token, $filtered);
 
         return response()->json([
-            'success' => true,
+            'success'    => true,
             'sensexSpot' => $spot,
-            'data' => $options,
-            'time' => now('Asia/Kolkata')->format('H:i:s'),
+            'data'       => $options,
+            'time'       => now('Asia/Kolkata')->format('H:i:s'),
         ]);
     }
+
+ public function debugNow()
+{
+    $token       = session('angel_jwt');
+    $allExpiries = Cache::get('sensex_expiry_list_v4', []);
+    $expiry      = $allExpiries[0] ?? '';
+    $strikeMap   = Cache::get("sensex_map_{$expiry}", []);
+    $spot        = Cache::get('sensex_spot_last', 0);
+
+    // Find ATM
+    $strikes = array_keys($strikeMap);
+    sort($strikes);
+    $atm = $strikes[0] ?? 0; $minD = PHP_INT_MAX;
+    foreach ($strikes as $s) {
+        $d = abs($s - $spot);
+        if ($d < $minD) { $minD = $d; $atm = $s; }
+    }
+
+    // ATM -1, 0, +1
+    $sample = []; $atmIdx = array_search($atm, $strikes);
+    foreach ([-1, 0, 1] as $offset) {
+        $s = $strikes[$atmIdx + $offset] ?? null;
+        if ($s) $sample[$s] = $strikeMap[$s];
+    }
+
+    // ✅ Build tokens FROM sample
+    $tokens = [];
+    foreach ($sample as $row) {
+        if (!empty($row['ce'])) $tokens[] = (string) $row['ce'];
+        if (!empty($row['pe'])) $tokens[] = (string) $row['pe'];
+    }
+
+    $res = \Illuminate\Support\Facades\Http::timeout(10)
+        ->withHeaders($this->sensexService->getHeaders($token))
+        ->post('https://apiconnect.angelone.in/rest/secure/angelbroking/market/v1/quote/', [
+            'mode'           => 'FULL',
+            'exchangeTokens' => ['BFO' => $tokens],
+        ]);
+
+    return response()->json([
+        'spot'        => $spot,
+        'expiry'      => $expiry,
+        'atm_strike'  => $atm,
+        'sample'      => $sample,
+        'tokens_sent' => $tokens,
+        'raw_response'=> $res->json(),
+    ], 200, [], JSON_PRETTY_PRINT);
+}
+
 }

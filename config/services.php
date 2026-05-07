@@ -36,7 +36,15 @@ return [
     ],
    
     'angel' => [
+        'client_code' => env('ANGEL_CLIENT_CODE'),
+        'password'    => env('ANGEL_PASSWORD'),
+        'api_key'     => env('ANGEL_API_KEY'),
+        'secret_key'  => env('ANGEL_SECRET_KEY'),
         'totp_secret' => env('ANGEL_TOTP_SECRET'),
+    ],
+
+    'groq' => [
+        'api_key' => env('GROQ_API_KEY'),
     ],
 
 ];

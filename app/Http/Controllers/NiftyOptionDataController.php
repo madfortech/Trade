@@ -35,8 +35,8 @@ class NiftyOptionDataController extends Controller
                 Cache::put('last_nifty_spot', $niftySpot, 300);
             }
 
-            $strikePrices  = $this->generateStrikePrices($niftySpot);
-            $optionSymbols = $this->buildOptionSymbols($strikePrices, $selectedExpiry);
+            $strikePrices   = $this->generateStrikePrices($niftySpot);
+            $optionSymbols  = $this->buildOptionSymbols($strikePrices, $selectedExpiry);
             $symbolTokenMap = $this->getSymbolTokenMap();
 
             $allTokens     = [];
@@ -128,7 +128,7 @@ class NiftyOptionDataController extends Controller
             $marketData = [];
             foreach (array_chunk($allTokens, 50) as $chunk) {
                 try {
-                    $r = Http::timeout(10)->withHeaders($this->getHeaders($token))
+                    $r  = Http::timeout(10)->withHeaders($this->getHeaders($token))
                         ->post($this->baseUrl . "/rest/secure/angelbroking/market/v1/quote/", [
                             'mode' => 'FULL', 'exchangeTokens' => ['NFO' => $chunk],
                         ]);
@@ -171,99 +171,195 @@ class NiftyOptionDataController extends Controller
     // ─── Historical Candle Data (AJAX) ────────────────────────────────────────
     public function getCandleData(Request $request)
     {
-        set_time_limit(60);
+        Log::info('============ CANDLE REQUEST START ============');
+
         try {
             $token       = session('angel_jwt');
             $symbolToken = $request->get('token');
-            $exchange    = $request->get('exchange', 'NFO');
             $interval    = $request->get('interval', 'FIVE_MINUTE');
-            $expiryParam = $request->get('expiry', '');
 
-            if (!$token || !$symbolToken) {
-                return response()->json(['success' => false, 'message' => 'Missing params', 'data' => []]);
+            if (!$token) {
+                return response()->json(['success' => false, 'message' => 'Please re-login to Angel One', 'data' => []]);
+            }
+            if (!$symbolToken) {
+                return response()->json(['success' => false, 'message' => 'Symbol token missing', 'data' => []]);
             }
 
-            $now     = Carbon::now('Asia/Kolkata');
-            $nowHHMM = (int)$now->format('Hi');
+            $data = $this->fetchHistoricalCandles($token, $symbolToken, 'NFO', $interval);
 
-            $expiryCarbon = null;
-            if (!empty($expiryParam)) {
-                try { $expiryCarbon = Carbon::createFromFormat('dMY', $expiryParam, 'Asia/Kolkata'); }
-                catch (\Exception $e) {
-                    try { $expiryCarbon = Carbon::parse($expiryParam, 'Asia/Kolkata'); } catch (\Exception $e2) {}
-                }
+            if (!empty($data)) {
+                Log::info('✅ Historical data found', ['candles' => count($data)]);
+                return response()->json([
+                    'success' => true,
+                    'data'    => $data,
+                    'source'  => 'historical_api',
+                    'meta'    => ['candles' => count($data), 'interval' => $interval],
+                ]);
             }
 
-            $isLive         = false;
-            $lastTradingDay = $this->getLastTradingDay($now);
-
-            if ($expiryCarbon) {
-                $expOnly  = $expiryCarbon->copy()->startOfDay();
-                $todayOnly = $now->copy()->startOfDay();
-                if ($expOnly->lt($todayOnly)) {
-                    $toDate = $this->getLastTradingDay($expiryCarbon)->copy()->setTime(15,30,0)->format('Y-m-d H:i:s');
-                    $isLive = false;
-                } elseif ($expOnly->eq($todayOnly)) {
-                    $isLive = ($nowHHMM >= 915 && $nowHHMM <= 1530);
-                    $toDate = $isLive ? $now->copy()->subMinute()->format('Y-m-d H:i:s') : $now->copy()->setTime(15,30,0)->format('Y-m-d H:i:s');
-                } else {
-                    $isLive = $lastTradingDay->isSameDay($now) && $nowHHMM >= 915 && $nowHHMM <= 1530;
-                    $toDate = $isLive ? $now->copy()->subMinute()->format('Y-m-d H:i:s') : $lastTradingDay->copy()->setTime(15,30,0)->format('Y-m-d H:i:s');
-                }
-            } else {
-                $isLive = $lastTradingDay->isSameDay($now) && $nowHHMM >= 915 && $nowHHMM <= 1530;
-                $toDate = $isLive ? $now->copy()->subMinute()->format('Y-m-d H:i:s') : $lastTradingDay->copy()->setTime(15,30,0)->format('Y-m-d H:i:s');
-            }
-
-            $daysBack = match($interval) {
-                'ONE_MINUTE','THREE_MINUTE','FIVE_MINUTE' => 5,
-                'FIFTEEN_MINUTE' => 10,
-                'THIRTY_MINUTE'  => 20,
-                'ONE_HOUR'       => 30,
-                'ONE_DAY'        => 365,
-                default          => 5,
-            };
-
-            $toCarbon = Carbon::parse($toDate, 'Asia/Kolkata');
-            $fromDay  = $toCarbon->copy()->subDays($daysBack);
-            while ($fromDay->isWeekend()) $fromDay->subDay();
-            $fromDate = $fromDay->format('Y-m-d') . ' 09:15:00';
-
-            $cacheKey = "candle_v9_{$symbolToken}_{$interval}_" . ($isLive ? $now->format('YmdHi') : $toCarbon->format('Ymd'));
-            $cacheTtl = $isLive ? 30 : 7200;
-
-            $data = Cache::remember($cacheKey, $cacheTtl, function () use ($token, $symbolToken, $exchange, $interval, $fromDate, $toDate) {
-                $r    = Http::timeout(20)->withHeaders($this->getHeaders($token))
-                    ->post("https://apiconnect.angelone.in/rest/secure/angelbroking/historical/v1/getCandleData", [
-                        "exchange" => $exchange, "symboltoken" => $symbolToken,
-                        "interval" => $interval, "fromdate"    => $fromDate, "todate" => $toDate,
-                    ]);
-                $json = $r->json();
-                if (empty($json['data'])) Log::warning('getCandleData empty', compact('symbolToken','interval','fromDate','toDate'));
-                $raw = $json['data'] ?? [];
-                return is_array($raw) ? $raw : [];
-            });
-
-            if (empty($data)) {
-                return response()->json(['success' => false, 'message' => "No data — {$interval} | {$fromDate} → {$toDate}", 'data' => []]);
-            }
-            return response()->json(['success' => true, 'data' => $data]);
+            Log::error('❌ No historical data for token: ' . $symbolToken);
+            return response()->json([
+                'success' => false,
+                'message' => 'No chart data available. This option may have low liquidity or no trades today. Try ATM strike.',
+                'data'    => [],
+            ]);
 
         } catch (\Exception $e) {
-            Log::error('getCandleData: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => $e->getMessage(), 'data' => []]);
+            Log::error('❌ getCandleData error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Server error: ' . $e->getMessage(), 'data' => []]);
+        } finally {
+            Log::info('============ CANDLE REQUEST END ============');
         }
     }
 
+    // ─── Fetch Historical Candles (dynamic dates, 5 attempts) ────────────────
+    // private function fetchHistoricalCandles($token, $symbolToken, $exchange, $interval): array
+    // {
+    //     $now = Carbon::now('Asia/Kolkata');
+
+    //     $isMarketOpen = $now->isWeekday()
+    //                  && (int)$now->format('Hi') >= 915
+    //                  && (int)$now->format('Hi') <= 1530;
+
+    //     // toDate: abhi agar market open, warna last trading day 15:30
+    //     if ($isMarketOpen) {
+    //         $toDate = $now->format('Y-m-d H:i:s');
+    //     } else {
+    //         $lastDay = $now->copy();
+    //         // Weekend pe peeche jao
+    //         while ($lastDay->isWeekend()) {
+    //             $lastDay->subDay();
+    //         }
+    //         // Pre-market: kal ka data
+    //         if ($now->isWeekday() && (int)$now->format('Hi') < 915) {
+    //             $lastDay->subDay();
+    //             while ($lastDay->isWeekend()) {
+    //                 $lastDay->subDay();
+    //             }
+    //         }
+    //         $toDate = $lastDay->copy()->setTime(15, 30, 0)->format('Y-m-d H:i:s');
+    //     }
+
+    //     // 5 attempts: aaj, kal, parso, 3 din, 4 din
+    //     for ($daysBack = 0; $daysBack <= 4; $daysBack++) {
+    //         try {
+    //             $fromCarbon = Carbon::now('Asia/Kolkata')->subDays($daysBack);
+    //             while ($fromCarbon->isWeekend()) {
+    //                 $fromCarbon->subDay();
+    //             }
+    //             $fromDate = $fromCarbon->copy()->setTime(9, 15, 0)->format('Y-m-d H:i:s');
+
+    //             // Past days ke liye toDate = us din ka 15:30
+    //             $currentToDate = ($daysBack === 0)
+    //                 ? $toDate
+    //                 : $fromCarbon->copy()->setTime(15, 30, 0)->format('Y-m-d H:i:s');
+
+    //             Log::info("🔄 Candle attempt #{$daysBack}", [
+    //                 'from'  => $fromDate,
+    //                 'to'    => $currentToDate,
+    //                 'token' => $symbolToken,
+    //             ]);
+
+    //             $response = Http::timeout(15)
+    //                 ->withHeaders($this->getHeaders($token))
+    //                 ->post($this->baseUrl . "/rest/secure/angelbroking/historical/v1/getCandleData", [
+    //                     'exchange'    => $exchange,
+    //                     'symboltoken' => $symbolToken,
+    //                     'interval'    => $interval,
+    //                     'fromdate'    => $fromDate,
+    //                     'todate'      => $currentToDate,
+    //                 ]);
+
+    //             $json = $response->json();
+    //             $data = $json['data'] ?? [];
+
+    //             Log::info("Attempt #{$daysBack} result", [
+    //                 'status'  => $json['status']  ?? 'unknown',
+    //                 'message' => $json['message'] ?? '',
+    //                 'candles' => is_array($data) ? count($data) : 0,
+    //             ]);
+
+    //             if (!empty($data) && is_array($data) && count($data) >= 1) {
+    //                 Log::info("✅ Got candles on attempt #{$daysBack}", ['count' => count($data)]);
+    //                 return $data;
+    //             }
+
+    //         } catch (\Exception $e) {
+    //             Log::warning("Attempt #{$daysBack} exception: " . $e->getMessage());
+    //             continue;
+    //         }
+    //     }
+
+    //     return [];
+    // }
+
+        // ─── Fetch Historical Candles (dynamic dates, 5 attempts) ────────────────
+    private function fetchHistoricalCandles($token, $symbolToken, $exchange, $interval): array
+    {
+        $now = Carbon::now('Asia/Kolkata');
+
+        $isMarketOpen = $now->isWeekday()
+                     && (int)$now->format('Hi') >= 915
+                     && (int)$now->format('Hi') <= 1530;
+
+        for ($daysBack = 0; $daysBack <= 4; $daysBack++) {
+            try {
+                $fromCarbon = Carbon::now('Asia/Kolkata')->subDays($daysBack);
+                while ($fromCarbon->isWeekend()) { $fromCarbon->subDay(); }
+
+                $fromDate = $fromCarbon->copy()->setTime(9, 15, 0)->format('Y-m-d H:i');
+
+                $currentToDate = ($daysBack === 0 && $isMarketOpen)
+                    ? $now->format('Y-m-d H:i')
+                    : $fromCarbon->copy()->setTime(15, 30, 0)->format('Y-m-d H:i');
+
+                Log::info("🔄 Candle attempt #{$daysBack}", [
+                    'from'  => $fromDate,
+                    'to'    => $currentToDate,
+                    'token' => $symbolToken,
+                ]);
+
+                $response = Http::timeout(15)
+                    ->withHeaders($this->getHeaders($token))
+                    ->post($this->baseUrl . "/rest/secure/angelbroking/historical/v1/getCandleData", [
+                        'exchange'    => $exchange,
+                        'symboltoken' => $symbolToken,
+                        'interval'    => $interval,
+                        'fromdate'    => $fromDate,
+                        'todate'      => $currentToDate,
+                    ]);
+
+                $json = $response->json();
+                $data = $json['data'] ?? [];
+
+                Log::info("Attempt #{$daysBack} result", [
+                    'status'  => $json['status']  ?? 'unknown',
+                    'message' => $json['message'] ?? '',
+                    'candles' => is_array($data) ? count($data) : 0,
+                ]);
+
+                if (!empty($data) && is_array($data) && count($data) >= 1) {
+                    Log::info("✅ Got candles on attempt #{$daysBack}", ['count' => count($data)]);
+                    return $data;
+                }
+
+            } catch (\Exception $e) {
+                Log::warning("Attempt #{$daysBack} exception: " . $e->getMessage());
+                continue;
+            }
+        }
+
+        return [];
+    }
+
+
     // ══════════════════════════════════════════════════════════════════════════
-    //  NIFTY SYMBOL PARSER — 3-pass, validates strike range 10000–40000
-    //  Fixes: "2622500" bug where year digits merged with strike
+    //  NIFTY SYMBOL PARSER
     // ══════════════════════════════════════════════════════════════════════════
     private function parseNiftySymbol(string $symbol): ?array
     {
         if (empty($symbol)) return null;
 
-        // Pass 1: NIFTY17MAR2622500CE — standard format
         if (preg_match('/^NIFTY(\d{2})([A-Z]{3})(\d{2})(\d{3,6})(CE|PE)$/', $symbol, $m)) {
             $strike = (int)$m[4];
             if ($strike >= 10000 && $strike <= 40000 && $strike % 50 === 0) {
@@ -271,7 +367,6 @@ class NiftyOptionDataController extends Controller
             }
         }
 
-        // Pass 2: NIFTY2622500CE — short weekly format (no day/month)
         if (preg_match('/^NIFTY(\d{2})(\d{5})(CE|PE)$/', $symbol, $m)) {
             $strike = (int)$m[2];
             if ($strike >= 10000 && $strike <= 40000 && $strike % 50 === 0) {
@@ -279,9 +374,8 @@ class NiftyOptionDataController extends Controller
             }
         }
 
-        // Pass 3: Brute-force — strip year prefix if needed
         if (preg_match('/(\d+)(CE|PE)$/', $symbol, $m)) {
-            $raw = (int)$m[1];
+            $raw    = (int)$m[1];
             $strike = $raw;
             if ($strike > 40000 && strlen((string)$raw) > 5) {
                 $candidate = (int)substr((string)$raw, 2);
@@ -307,7 +401,7 @@ class NiftyOptionDataController extends Controller
                 ]);
             $json = $r->json();
             if (empty($json['status']) || $json['status'] === false) return null;
-            $ltp = $json['data']['fetched'][0]['ltp'] ?? null;
+            $ltp  = $json['data']['fetched'][0]['ltp'] ?? null;
             return ($ltp !== null && (float)$ltp > 10000) ? (float)$ltp : null;
         } catch (\Exception $e) {
             Log::error('getNiftySpot: ' . $e->getMessage());
@@ -320,7 +414,7 @@ class NiftyOptionDataController extends Controller
     {
         return Cache::remember('angel_nifty_token_map_v2', 3600, function () {
             $scrips = json_decode(file_get_contents("https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"), true);
-            $map = [];
+            $map    = [];
             if (!is_array($scrips)) return $map;
             foreach ($scrips as $s) {
                 if (($s['exch_seg'] ?? '') === 'NFO' && ($s['name'] ?? '') === 'NIFTY') {
@@ -332,13 +426,13 @@ class NiftyOptionDataController extends Controller
     }
 
     // ─── Last Trading Day ─────────────────────────────────────────────────────
-    private function getLastTradingDay(Carbon $now): Carbon
+    private function getLastTradingDay(Carbon $date): Carbon
     {
-        $day = $now->copy()->startOfDay();
-        while ($day->isWeekend()) $day->subDay();
-        if ($day->isSameDay($now) && $now->format('H:i') < '09:15') {
+        $day = $date->copy()->startOfDay();
+        while ($day->isWeekend()) { $day->subDay(); }
+        if ($day->isSameDay($date) && (int)$date->format('Hi') < 915) {
             $day->subDay();
-            while ($day->isWeekend()) $day->subDay();
+            while ($day->isWeekend()) { $day->subDay(); }
         }
         return $day;
     }
@@ -352,12 +446,12 @@ class NiftyOptionDataController extends Controller
             $today    = strtotime(date('Y-m-d'));
             if (!is_array($scrips)) return $expiries;
             foreach ($scrips as $s) {
-                if (($s['name']??'') === 'NIFTY' && ($s['exch_seg']??'') === 'NFO' && !empty($s['expiry'])) {
+                if (($s['name'] ?? '') === 'NIFTY' && ($s['exch_seg'] ?? '') === 'NFO' && !empty($s['expiry'])) {
                     if (strtotime($s['expiry']) >= $today) $expiries[] = $s['expiry'];
                 }
             }
             $unique = array_values(array_unique($expiries));
-            usort($unique, fn($a,$b) => strtotime($a)-strtotime($b));
+            usort($unique, fn($a, $b) => strtotime($a) - strtotime($b));
             return array_slice($unique, 0, 10);
         });
     }
@@ -447,7 +541,7 @@ class NiftyOptionDataController extends Controller
                     "name" => $name, "expirydate" => $expiry,
                 ]);
             $data = $r->json()['data'] ?? [];
-            if (!is_array($data)) { Log::warning('getOptionGreeks non-array', ['data'=>$data]); return []; }
+            if (!is_array($data)) { Log::warning('getOptionGreeks non-array', ['data' => $data]); return []; }
             return $data;
         } catch (\Exception $e) {
             Log::error('getOptionGreeks: ' . $e->getMessage());

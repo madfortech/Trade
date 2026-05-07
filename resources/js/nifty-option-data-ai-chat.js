@@ -1,16 +1,3 @@
-/**
- * nifty-option-data-ai-chat.js
- * Path: resources/js/nifty-option-data-ai-chat.js
- *
- * AI Analysis + Chat panel
- *
- * FIXES:
- *  - Race condition: setTimeout(300ms) HATAYA. Ab DOMContentLoaded + direct export import use karta hai
- *  - window.openAngelChart aur window.closeModal yahan DEFINE NAHI hote — woh option-chain-chart.js mein hain
- *  - Yahan sirf AI panel aur chat logic hai
- *  - window._lastCandles option-chain-chart.js set karta hai — yahan sirf read karte hain
- */
-
 'use strict';
 
 // ── CSRF ──────────────────────────────────────────────────────────────────────
@@ -21,13 +8,25 @@ let _candleWatchTimer = null;
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
 const _el   = id  => document.getElementById(id);
-const _show = id  => { const e = _el(id); if (e) e.style.display = 'flex'; };
-const _hide = id  => { const e = _el(id); if (e) e.style.display = 'none'; };
+
+const _show = id  => {
+    const e = _el(id);
+    if (!e) return;
+    e.classList.remove('hidden');
+    e.style.display = e.dataset.display || 'flex';
+};
+
+const _hide = id  => {
+    const e = _el(id);
+    if (!e) return;
+    e.classList.add('hidden');
+    e.style.display = 'none';
+};
+
 const _esc  = s   => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const _tnow = ()  => new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
 
 // ─── Wait for candles → auto-trigger AI ───────────────────────────────────────
-// option-chain-chart.js window._lastCandles update karta hai jab candles aa jaate hain
 function _waitForCandlesAndAnalyze() {
     if (_candleWatchTimer) { clearInterval(_candleWatchTimer); _candleWatchTimer = null; }
     let n = 0;
@@ -39,7 +38,7 @@ function _waitForCandlesAndAnalyze() {
             _candleWatchTimer = null;
             setTimeout(runAIAnalysis, 300);
         }
-        if (n > 40) { // 20s timeout — stop trying
+        if (n > 40) {
             clearInterval(_candleWatchTimer);
             _candleWatchTimer = null;
         }
@@ -47,33 +46,26 @@ function _waitForCandlesAndAnalyze() {
 }
 
 // ── Patch window.openAngelChart ───────────────────────────────────────────────
-// chart-chart.js apna openAngelChart define karta hai — hum usse WRAP karte hain
-// DOMContentLoaded ke baad wrap karo (load order fix)
 function _patchChartOpen() {
     const _origOpen = window.openAngelChart;
 
     window.openAngelChart = function(token, label, exchange, peToken, strike, side, expiry) {
-        // Reset AI panel
         _resetAIPanel();
-        // Reset chat
         _resetChat(label || '');
 
-        // Stop any pending candle watcher
         if (_candleWatchTimer) { clearInterval(_candleWatchTimer); _candleWatchTimer = null; }
         window._aiAnalyzing = false;
         window._chatTyping  = false;
 
-        // Call original (chart-chart.js) — yeh chart draw karega aur window._lastCandles set karega
         if (typeof _origOpen === 'function') {
             _origOpen(token, label, exchange, peToken, strike, side, expiry);
         }
 
-        // Watch for candles to load, then run AI
         _waitForCandlesAndAnalyze();
     };
 }
 
-// Patch closeModal to reset AI state
+// ── Patch closeModal ──────────────────────────────────────────────────────────
 function _patchChartClose() {
     const _origClose = window.closeModal;
     window.closeModal = function() {
@@ -86,15 +78,12 @@ function _patchChartClose() {
     };
 }
 
-// ── Install patches — wait for chart.js to define its globals ─────────────────
-// option-chain-chart.js Vite se import hota hai — window globals synchronously set hote hain
-// lekin dono files ek hi bundle mein hain, toh DOMContentLoaded ke baad safe hai
+// ── Install patches ───────────────────────────────────────────────────────────
 function _install() {
     if (typeof window.openAngelChart === 'function') {
         _patchChartOpen();
         _patchChartClose();
     } else {
-        // Agar abhi tak define nahi hua (async load), 50ms baad retry
         setTimeout(_install, 50);
     }
 }
@@ -106,11 +95,22 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── AI Panel Reset ────────────────────────────────────────────────────────────
 function _resetAIPanel() {
     window._aiAnalyzing = false;
-    _show('aiWaiting'); _hide('aiSkeleton'); _hide('aiVerdictArea');
-    const wp = _el('aiWaiting')?.querySelector('p');
+
+    // Show waiting, hide others
+    const waiting   = _el('aiWaiting');
+    const skeleton  = _el('aiSkeleton');
+    const verdict   = _el('aiVerdictArea');
+
+    if (waiting)  { waiting.classList.remove('hidden');  waiting.style.display  = 'flex'; }
+    if (skeleton) { skeleton.classList.add('hidden');    skeleton.style.display = 'none'; }
+    if (verdict)  { verdict.classList.add('hidden');     verdict.style.display  = 'none'; }
+
+    const wp = waiting?.querySelector('p');
     if (wp) wp.innerHTML = 'Chart load hone ke baad<br><strong style="color:#4f46e5;">AI Analysis</strong> trigger hogi...';
+
     const btnTxt = _el('aiAnalyzeBtnTxt');
     if (btnTxt) btnTxt.textContent = '⚡ Analyze';
+
     const btn = _el('aiAnalyzeBtn');
     if (btn) { btn.style.opacity = '1'; btn.style.cursor = 'pointer'; }
 }
@@ -120,7 +120,15 @@ window.runAIAnalysis = async function() {
     if (window._aiAnalyzing) return;
     window._aiAnalyzing = true;
 
-    _hide('aiWaiting'); _hide('aiVerdictArea'); _show('aiSkeleton');
+    // Hide waiting & verdict, show skeleton
+    const waiting  = _el('aiWaiting');
+    const skeleton = _el('aiSkeleton');
+    const verdict  = _el('aiVerdictArea');
+
+    if (waiting)  { waiting.classList.add('hidden');     waiting.style.display  = 'none'; }
+    if (skeleton) { skeleton.classList.remove('hidden'); skeleton.style.display = 'block'; }
+    if (verdict)  { verdict.classList.add('hidden');     verdict.style.display  = 'none'; }
+
     const btn    = _el('aiAnalyzeBtn');
     const btnTxt = _el('aiAnalyzeBtnTxt');
     if (btn)    { btn.style.opacity = '.5'; btn.style.cursor = 'not-allowed'; }
@@ -132,7 +140,7 @@ window.runAIAnalysis = async function() {
 
         if (!candles.length) throw new Error('Chart data load nahi hua — pehle chart open karo.');
 
-        const res = await fetch('/angel/ai-analyze', {
+        const res = await fetch('/angel/nifty-ai-analyze', {   // ← FIXED ROUTE
             method:  'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrf() },
             body:    JSON.stringify({
@@ -152,7 +160,10 @@ window.runAIAnalysis = async function() {
         _renderAI(json.data);
 
     } catch(err) {
-        _hide('aiSkeleton'); _show('aiWaiting');
+        // Show error in waiting panel
+        if (skeleton) { skeleton.classList.add('hidden'); skeleton.style.display = 'none'; }
+        if (waiting)  { waiting.classList.remove('hidden'); waiting.style.display = 'flex'; }
+
         const wp = _el('aiWaiting')?.querySelector('p');
         if (wp) wp.innerHTML = `<span style="color:#dc2626;">❌ ${_esc(err.message)}</span><br><small style="color:#64748b;">Retry karo.</small>`;
     }
@@ -164,22 +175,64 @@ window.runAIAnalysis = async function() {
 
 // ── Render AI result ──────────────────────────────────────────────────────────
 function _renderAI(d) {
-    _hide('aiSkeleton'); _hide('aiWaiting'); _show('aiVerdictArea');
+    const skeleton = _el('aiSkeleton');
+    const waiting  = _el('aiWaiting');
+    const verdict  = _el('aiVerdictArea');
+
+    if (skeleton) { skeleton.classList.add('hidden');     skeleton.style.display = 'none'; }
+    if (waiting)  { waiting.classList.add('hidden');      waiting.style.display  = 'none'; }
+    if (verdict)  { verdict.classList.remove('hidden');   verdict.style.display  = 'block'; }
 
     const set = (id, val) => { const e = _el(id); if (e) e.textContent = val || '—'; };
     const setColor = (id, val, color) => {
         const e = _el(id); if (!e) return;
-        e.textContent  = val || '—';
-        e.style.color  = (color && color !== '#ffffff') ? color : '#0f172a';
+        e.textContent = val || '—';
+        e.style.color = (color && color !== '#ffffff') ? color : '#0f172a';
     };
 
-    set('aiIcon',         d.icon);
-    set('aiVerdictTitle', d.title);
-    set('aiConf',         d.confidence);
+    set(
+    'aiIcon',
+    d.icon ||
+    (
+        d.verdict === 'bullish' ? '🟢' :
+        d.verdict === 'bearish' ? '🔴' :
+        d.verdict === 'sideways' ? '🟡' :
+        '📊'
+    )
+    );
 
+    set(
+        'aiVerdictTitle',
+        d.title ||
+        (
+            d.verdict === 'bullish' ? 'STRONG UPTREND' :
+            d.verdict === 'bearish' ? 'STRONG DOWNTREND' :
+            d.verdict === 'sideways' ? 'SIDEWAYS MARKET' :
+            'MARKET NEUTRAL'
+        )
+    );
+
+    set(
+        'aiConf',
+        d.confidence ||
+        ((d.score || 80) + '% Confidence')
+    );
+
+    // Verdict box styling
     const box = _el('aiVerdictBox');
     if (box) {
-        box.className = `flex items-center gap-2.5 p-2.5 rounded-lg mb-2 border av-${d.verdict || 'neutral'}`;
+        const verdictColors = {
+            bullish:  { bg: '#f0fdf4', border: '#86efac', icon: '🟢' },
+            bearish:  { bg: '#fef2f2', border: '#fca5a5', icon: '🔴' },
+            neutral:  { bg: '#f8fafc', border: '#cbd5e1', icon: '🟡' },
+            sideways: { bg: '#fffbeb', border: '#fcd34d', icon: '🟡' },
+        };
+        const vc = verdictColors[d.verdict] || verdictColors.neutral;
+        box.style.background   = vc.bg;
+        box.style.borderColor  = vc.border;
+        box.style.border       = `1.5px solid ${vc.border}`;
+        box.style.borderRadius = '12px';
+        box.style.padding      = '10px 12px';
     }
 
     setColor('aiTrendAlign', d.trendAlign,  d.trendAlignColor);
@@ -191,7 +244,7 @@ function _renderAI(d) {
     if (d.keyLevels?.support || d.keyLevels?.resistance) {
         if (d.keyLevels.support)    { const e = _el('aiSupport'); if (e) e.textContent = d.keyLevels.support; }
         if (d.keyLevels.resistance) { const e = _el('aiResist');  if (e) e.textContent = d.keyLevels.resistance; }
-        if (lg) lg.style.display = '';
+        if (lg) lg.style.display = 'grid';
     } else {
         if (lg) lg.style.display = 'none';
     }
@@ -260,7 +313,6 @@ window.sendChat = async function() {
     const text = inp.value.trim();
     if (!text) return;
 
-    // Cancel previous typing indicator if any
     if (window._chatTyping) {
         window._chatTyping = false;
         const old = document.getElementById('typing-indicator');
@@ -274,9 +326,9 @@ window.sendChat = async function() {
     if (sendBtn) sendBtn.style.opacity = '0.5';
 
     _userMsg(text);
-    inp.value      = '';
+    inp.value        = '';
     inp.style.height = 'auto';
-    const typing   = _typingMsg();
+    const typing     = _typingMsg();
 
     try {
         const res = await fetch('/angel/chart-chat', {
@@ -294,8 +346,8 @@ window.sendChat = async function() {
         if (typing) {
             const b = typing.querySelector('.chat-bubble');
             if (b) {
-                b.innerHTML        = j.reply || j.message || 'Jawab nahi mila.';
-                b.style.color      = '#1e293b';
+                b.innerHTML           = j.reply || j.message || 'Jawab nahi mila.';
+                b.style.color         = '#1e293b';
                 b.style.letterSpacing = 'normal';
             }
         }

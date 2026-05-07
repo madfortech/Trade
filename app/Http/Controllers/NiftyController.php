@@ -1,11 +1,10 @@
 <?php
-
+// delete this file after testing
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\InteractsWithNiftyOptionChain;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -15,208 +14,139 @@ class NiftyController extends Controller
 
     private string $baseUrl = 'https://apiconnect.angelone.in';
 
-    private array $chunkDays = [
-        'ONE_MINUTE' => 30,
-        'THREE_MINUTE' => 60,
-        'FIVE_MINUTE' => 60,
-        'FIFTEEN_MINUTE' => 60,
-        'THIRTY_MINUTE' => 60,
-        'ONE_HOUR' => 400,
-        'ONE_DAY' => 2000,
-    ];
-
-    public function index(Request $request)
-    {
-        set_time_limit(120);
-        ini_set('default_socket_timeout', 120);
-
-        $allExpiries = [];
-        $selectedExpiry = '';
-        $optionsData = [];
-        $niftySpot = 0;
-        $marketStatus = $this->getMarketStatus();
-
-        try {
-            $token = session('angel_jwt');
-            if (!$token) {
-                return redirect()->route('angel.login')->with('error', 'Please login first.');
-            }
-
-            $allExpiries = $this->getAvailableExpiries();
-            $selectedExpiry = $request->get('expiry', $allExpiries[0] ?? '');
-
-            $niftySpot = $this->getNiftySpotPrice($token);
-            if (!$niftySpot) {
-                $niftySpot = Cache::get('last_nifty_spot', 25000.00);
-            } else {
-                Cache::put('last_nifty_spot', $niftySpot, 86400);
-            }
-
-            $strikePrices = $this->generateStrikePrices($niftySpot);
-            $optionSymbols = $this->buildOptionSymbols($strikePrices, $selectedExpiry);
-            $exchangeTokens = $this->processScripMaster($optionSymbols);
-
-            $marketData = $this->fetchOptionMarketData($token, $selectedExpiry, $exchangeTokens);
-            $greekExpiry = Carbon::parse($selectedExpiry)->format('d-M-Y');
-            $greeksData = $this->getOptionGreeks($token, 'NIFTY', $greekExpiry);
-            $optionsData = $this->mergeData($marketData, $greeksData, $strikePrices);
-        } catch (\Exception $exception) {
-            Log::error('Option Chain Error: ' . $exception->getMessage());
-        }
-
-        return view('nifty.option-data', [
-            'optionsData' => $optionsData,
-            'niftySpot' => $niftySpot,
-            'selectedExpiry' => $selectedExpiry,
-            'allExpiries' => $allExpiries,
-            'marketStatus' => $marketStatus,
-        ]);
-    }
-
     public function chart()
     {
-        return view('trading.nifty', [
+        return view('trading.partials.nifty-terminal', [
             'clientCode' => session('clientCode'),
-            'feedToken' => session('feedToken'),
-            'apiKey' => env('ANGEL_API_KEY'),
-            'profile' => session('profile'),
+            'feedToken'  => session('feedToken'),
+            'apiKey'     => env('ANGEL_API_KEY'),
+            'profile'    => session('profile'),
         ]);
     }
 
-    public function historicalData(Request $request)
+    /**
+     * EXACT LIVE DATA: High, Low, LTP, Volume
+     */
+    public function getLiveLtp()
     {
         $token = session('angel_jwt');
-
         if (!$token) {
-            return response()->json(['candles' => [], 'error' => 'Not logged in']);
+            return response()->json(['success' => false, 'message' => 'Session expired. Please login again.'], 401);
         }
 
-        [$angelInterval, $totalDays] = $this->resolveIntervalConfig($request->query('interval', '5m'));
-        $chunkSize = $this->chunkDays[$angelInterval] ?? 60;
+        try {
+            $headers = $this->prepareHeaders($token);
 
-        $now = Carbon::now('Asia/Kolkata');
-        $endDt = $now->copy();
-        $startDt = $now->copy()->subDays($totalDays)->setTime(9, 15, 0);
-        $chunks = $this->buildDateChunks($startDt, $endDt, $chunkSize);
+            $response = Http::withHeaders($headers)
+                ->timeout(10)
+                ->post($this->baseUrl . '/rest/secure/angelbroking/market/v1/quote/', [
+                    "mode" => "FULL", 
+                    "exchangeTokens" => [
+                        "NSE" => ["99926000"] // NIFTY 50 Token
+                    ]
+                ]);
 
-        $allCandles = $this->fetchHistoricalChunks($token, $chunks, $angelInterval);
-        $unique = $this->dedupeAndSortCandles($allCandles);
-
-        return response()->json([
-            'candles' => $unique,
-            'total' => count($unique),
-            'chunks' => count($chunks),
-        ]);
-    }
-
-    private function fetchOptionMarketData(string $token, string $selectedExpiry, array $exchangeTokens): array
-    {
-        if (empty($exchangeTokens['NFO'])) {
-            return [];
-        }
-
-        $response = Http::withHeaders($this->getHeaders($token))
-            ->post($this->baseUrl . '/rest/secure/angelbroking/market/v1/quote/', [
-                'mode' => 'FULL',
-                'exchangeTokens' => $exchangeTokens,
-            ]);
-
-        $apiRes = $response->json();
-        if (isset($apiRes['data']['fetched']) && !empty($apiRes['data']['fetched'])) {
-            $marketData = $apiRes['data']['fetched'];
-            Cache::put("nifty_chain_{$selectedExpiry}_cache", $marketData, 86400);
-
-            return $marketData;
-        }
-
-        return Cache::get("nifty_chain_{$selectedExpiry}_cache", []);
-    }
-
-    private function resolveIntervalConfig(string $interval): array
-    {
-        $intervalMap = [
-            '3m' => ['angel' => 'THREE_MINUTE', 'totalDays' => 60],
-            '5m' => ['angel' => 'FIVE_MINUTE', 'totalDays' => 60],
-            '15m' => ['angel' => 'FIFTEEN_MINUTE', 'totalDays' => 180],
-            '1h' => ['angel' => 'ONE_HOUR', 'totalDays' => 365],
-            '1d' => ['angel' => 'ONE_DAY', 'totalDays' => 365],
-        ];
-
-        $normalizedInterval = isset($intervalMap[$interval]) ? $interval : '5m';
-
-        return [
-            $intervalMap[$normalizedInterval]['angel'],
-            $intervalMap[$normalizedInterval]['totalDays'],
-        ];
-    }
-
-    private function buildDateChunks(Carbon $startDt, Carbon $endDt, int $chunkSize): array
-    {
-        $chunks = [];
-        $chunkEnd = $endDt->copy();
-
-        while ($chunkEnd->gt($startDt)) {
-            $chunkStart = $chunkEnd->copy()->subDays($chunkSize);
-            if ($chunkStart->lt($startDt)) {
-                $chunkStart = $startDt->copy();
+            if ($response->failed()) {
+                return response()->json([
+                    'success' => false, 
+                    'message' => 'AngelOne API Error',
+                    'status'  => $response->status()
+                ], $response->status());
             }
 
-            $chunks[] = [
-                'from' => $chunkStart->format('Y-m-d H:i'),
-                'to' => $chunkEnd->format('Y-m-d H:i'),
-            ];
-            $chunkEnd = $chunkStart->copy()->subMinutes(1);
-        }
+            $result = $response->json();
 
-        return array_reverse($chunks);
+            if (isset($result['data']['fetched'][0])) {
+                $data = $result['data']['fetched'][0];
+                return response()->json([
+                    'success' => true,
+                    'ltp'     => (float)($data['ltp'] ?? 0),
+                    'high'    => (float)($data['high'] ?? 0),
+                    'low'     => (float)($data['low'] ?? 0),
+                    'volume'  => (int)($data['volume'] ?? 0),
+                    'change'  => (float)($data['netChange'] ?? 0),
+                    'percent' => (float)($data['percentChange'] ?? 0),
+                ]);
+            }
+
+            return response()->json(['success' => false, 'message' => 'No data found'], 404);
+
+        } catch (\Exception $e) {
+            Log::error("Nifty Live Error: " . $e->getMessage());
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
     }
 
-    private function fetchHistoricalChunks(string $token, array $chunks, string $angelInterval): array
-    {
-        $allCandles = [];
-        $headers = $this->getHeaders($token);
+    /**
+     * HISTORICAL DATA
+     */
+    public function historicalData(Request $request) 
+        {
+            // Sabse important: Timezone ko Asia/Kolkata set karein
+            date_default_timezone_set('Asia/Kolkata');
 
-        foreach ($chunks as $chunk) {
+            $token = session('angel_jwt');
+            if (!$token) return response()->json(['success' => false], 401);
+
+            $interval = $request->get('interval', '5m');
+            $intervalMap = [
+                '5m'  => 'FIVE_MINUTE',
+                '1h'  => 'ONE_HOUR',
+                '1d'  => 'ONE_DAY'
+            ];
+            
+            $apiInterval = $intervalMap[$interval] ?? 'FIVE_MINUTE';
+            $toDate = date('Y-m-d H:i'); 
+            $daysBack = ($interval === '1d') ? 100 : 7; 
+            $fromDate = date('Y-m-d 09:15', strtotime("-$daysBack days"));
+
             try {
-                $response = Http::timeout(20)
-                    ->withHeaders($headers)
+                $response = Http::withHeaders($this->prepareHeaders($token))
                     ->post($this->baseUrl . '/rest/secure/angelbroking/historical/v1/getCandleData', [
-                        'exchange' => 'NSE',
-                        'symboltoken' => '99926000',
-                        'interval' => $angelInterval,
-                        'fromdate' => $chunk['from'],
-                        'todate' => $chunk['to'],
+                        "exchange"    => "NSE",
+                        "symboltoken" => "99926000", 
+                        "interval"    => $apiInterval,
+                        "fromdate"    => $fromDate,
+                        "todate"      => $toDate
                     ]);
 
                 $result = $response->json();
-                if (!empty($result['data']) && is_array($result['data'])) {
-                    $allCandles = array_merge($allCandles, $result['data']);
+
+                if (isset($result['data']) && is_array($result['data'])) {
+                    $formatted = [];
+                    foreach ($result['data'] as $c) {
+                        $formatted[] = [
+                            // Timestamp ko Unix seconds mein convert karein
+                            'time'  => strtotime($c[0]), 
+                            'open'  => (float)$c[1],
+                            'high'  => (float)$c[2],
+                            'low'   => (float)$c[3],
+                            'close' => (float)$c[4],
+                            'vol'   => (int)$c[5]
+                        ];
+                    }
+                    usort($formatted, fn($a, $b) => $a['time'] <=> $b['time']);
+
+                    return response()->json(['success' => true, 'candles' => $formatted]);
                 }
-
-                usleep(400000);
-            } catch (\Exception $exception) {
-                continue;
+                return response()->json(['success' => false, 'message' => 'No data']);
+            } catch (\Exception $e) {
+                return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
             }
         }
 
-        return $allCandles;
-    }
-
-    private function dedupeAndSortCandles(array $candles): array
+    private function prepareHeaders($token) 
     {
-        $seen = [];
-        $unique = [];
-
-        foreach ($candles as $candle) {
-            $key = $candle[0] ?? null;
-            if ($key && !isset($seen[$key])) {
-                $seen[$key] = true;
-                $unique[] = $candle;
-            }
-        }
-
-        usort($unique, fn($a, $b) => strcmp($a[0], $b[0]));
-
-        return $unique;
+        return [
+            'Authorization' => 'Bearer ' . $token,
+            'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json',
+            'X-UserType'    => 'USER',
+            'X-SourceID'    => 'WEB',
+            'X-ClientLocalIP'  => '127.0.0.1',
+            'X-ClientPublicIP' => '127.0.0.1',
+            'X-MACAddress'     => '00-00-00-00-00-00',
+            'X-PrivateKey'     => env('ANGEL_API_KEY'),
+        ];
     }
 }
