@@ -8,7 +8,128 @@
     <div class="max-w-full mx-auto sm:px-4 lg:px-6">
 
  
- 
+        <!-- Header -->
+           <div class="flex flex-wrap gap-3 border-t-2 border-orange-500 border-b-2 border-orange-500 py-2.5 justify-between items-center bg-white px-4 shadow-sm">
+
+            <!-- Left -->
+            <div class="flex flex-wrap items-center gap-4">
+
+                <!-- Title -->
+                <h2 class="uppercase font-extrabold text-orange-900 tracking-wider text-sm">
+
+                    📊 Nifty Option Chain
+
+                </h2>
+
+                <!-- Expiry -->
+                <div class="flex items-center gap-1.5">
+
+                    <label class="text-[10px] font-bold text-gray-500 uppercase">
+
+                        Expiry:
+
+                    </label>
+
+                    <select
+                        id="expirySelect"
+                        onchange="changeNiftyExpiry(this.value)"
+                        class="text-xs font-bold border-gray-300 rounded py-1 px-2 bg-gray-50"
+                    >
+
+                        @forelse($allExpiries ?? [] as $expiry)
+
+                            <option
+                                value="{{ $expiry }}"
+                                {{ ($selectedExpiry ?? '') == $expiry ? 'selected' : '' }}
+                            >
+
+                                @php
+
+                                    try {
+
+                                        echo \Carbon\Carbon::createFromFormat(
+                                            'dMY',
+                                            strtoupper($expiry)
+                                        )->format('d-M-Y');
+
+                                    } catch(\Exception $e) {
+
+                                        echo $expiry;
+                                    }
+
+                                @endphp
+
+                            </option>
+
+                        @empty
+
+                            <option value="">
+
+                                No expiries
+
+                            </option>
+
+                        @endforelse
+
+                    </select>
+
+                </div>
+                <!-- Expiry -->
+
+                <!-- Auto Refresh -->
+                <div class="flex items-center gap-1.5">
+
+                    <label class="text-[10px] font-bold text-gray-500 uppercase">
+
+                        Auto Refresh:
+
+                    </label>
+
+                    <button
+                        id="autoRefreshBtn"
+                        onclick="toggleAutoRefresh()"
+                        class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300 transition-all"
+                    >
+
+                        OFF
+
+                    </button>
+
+                    {{-- COUNTDOWN --}}
+                    <span
+                        id="refreshCountdown"
+                        class="text-[10px] text-orange-500 font-mono hidden"
+                    ></span>
+
+                </div>
+
+                <flux:link href="{{ route('sensex.option-chain') }}">
+                    📊 Open Sensex
+                </flux:link>
+
+            </div>
+
+            <!-- Right -->
+            <div class="flex items-center gap-3">
+
+                <div class="text-sm font-black text-gray-800">
+
+                    NIFTY:
+
+                    <span
+                        id="niftySpotValue"
+                        class="text-orange-600 ml-1"
+                    >
+
+                        {{ number_format($niftySpot,2) }}
+
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
         <!-- Header -->
 
 
@@ -242,53 +363,119 @@
                     <div id="candleCount"
                          class="text-xs text-gray-500">
                     </div>
+
+                    <!-- CHART TIMEFRAMES -->
+                    <div class="flex items-center gap-1 px-4 py-2 border-t bg-white text-xs">
+
+                        <button
+                            data-range="1D"
+                            onclick="changeChartRange('1D')"
+                            class="chart-range-btn
+                                bg-indigo-600
+                                text-white
+                                px-2 py-1 rounded-md">
+                            1D
+                        </button>
+
+                        <button
+                            data-range="5D"
+                            onclick="changeChartRange('5D')"
+                            class="chart-range-btn
+                                text-slate-500
+                                hover:bg-slate-100
+                                px-2 py-1 rounded-md">
+                            5D
+                        </button>
+
+                        <button
+                            data-range="1M"
+                            onclick="changeChartRange('1M')"
+                            class="chart-range-btn
+                                text-slate-500
+                                hover:bg-slate-100
+                                px-2 py-1 rounded-md">
+                            1M
+                        </button>
+
+                        <button
+                            data-range="3M"
+                            onclick="changeChartRange('3M')"
+                            class="chart-range-btn
+                                text-slate-500
+                                hover:bg-slate-100
+                                px-2 py-1 rounded-md">
+                            3M
+                        </button>
+
+                        <button
+                            data-range="6M"
+                            onclick="changeChartRange('6M')"
+                            class="chart-range-btn
+                                text-slate-500
+                                hover:bg-slate-100
+                                px-2 py-1 rounded-md">
+                            6M
+                        </button>
+
+                        <button
+                            data-range="1Y"
+                            onclick="changeChartRange('1Y')"
+                            class="chart-range-btn
+                                text-slate-500
+                                hover:bg-slate-100
+                                px-2 py-1 rounded-md">
+                            1Y
+                        </button>
+
+                        <button
+                            data-range="5Y"
+                            onclick="changeChartRange('5Y')"
+                            class="chart-range-btn
+                                text-slate-500
+                                hover:bg-slate-100
+                                px-2 py-1 rounded-md">
+                            5Y
+                        </button>
+
+                    </div>
+                    <!-- END CHART TIMEFRAMES   -->
                 </div>
             </div>
 
             <!-- RIGHT AI -->
-            <div class="w-[340px] bg-white flex flex-col">
+            <div class="flex h-full min-h-0 w-[420px] min-w-[420px] max-w-[420px] flex-col overflow-hidden border-l bg-white">
 
-                <!-- AI HEADER -->
-                <div class="flex items-center justify-between px-4 py-3 border-b bg-slate-100">
-
-                    <div class="text-xs font-bold tracking-wide text-slate-700">
-                        LIVE AI ANALYSIS
-                    </div>
-
-                    <button onclick="generateChartAIAnalysis()"
-                            class="px-3 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-semibold">
-                        ⚡ ANALYZE
-                    </button>
-                </div>
-
-                <!-- AI CONTENT -->
-                <div id="aiAnalysisContent"
-                     class="flex-1 overflow-y-auto px-4 py-4 text-sm text-gray-700 whitespace-pre-wrap">
-                </div>
-
-                <!-- AI LOADER -->
-                <div id="aiAnalysisLoader"
-                     class="hidden px-4 py-3 text-xs text-gray-500 border-t">
-                    AI analyzing...
-                </div>
-
-                <!-- CHAT INPUT -->
-                <div class="border-t p-3 bg-white">
-
-                    <div class="flex items-center gap-2">
-
-                        <input type="text"
-                               id="aiChatInput"
-                               placeholder="Ask AI..."
-                               class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-
-                        <button onclick="sendAIChatMessage()"
-                                class="w-12 h-12 rounded-lg bg-indigo-600 text-white text-lg">
-                            ➤
+                {{-- ══ AI ANALYSIS HEADER + RESULT (partial) ══ --}}
+                <div class="px-4 py-3 border-b bg-slate-100 shrink-0">
+                    <div class="flex items-center justify-between">
+                        <div class="text-xs font-bold tracking-wide text-slate-700">LIVE AI ANALYSIS</div>
+                        <button
+                            id="aiAnalyzeBtn"
+                            type="button"
+                            onclick="window.runAIAnalysis()"
+                            class="px-3 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-semibold"
+                        >
+                            ⚡ Analyze
                         </button>
                     </div>
                 </div>
+                                       
+                <!-- START AI ANALYSIS RESULT -->
+                <div class="flex-1 min-h-0 overflow-y-auto">
+                    @include('nifty.partials.ai-analyis')
+                </div>
+                <!-- END AI ANALYSIS RESULT -->
+                    
+                <!-- API KEY -->
+                                        
+                <!--  END API KEY -->
+
+                <!-- CHAT -->
+                    @include('nifty.partials.ai-chat')
+                <!-- END CHAT -->
             </div>
+           
+            <!-- End Right AI -->
         </div>
     </div>
 </div>
@@ -300,17 +487,13 @@
 
 
 <script>
-    window.OPTION_CHAIN_ROUTE = "{{ route('angel.nifty.option-chain') }}";
+    window.OPTION_CHAIN_ROUTE = "{{ route('angel.chain.refresh') }}";
 </script>
 
 <!-- VITE -->
 @vite([
-'resources/js/option-chain.js',
-'resources/js/option-chain-chart.js',
-'resources/js/nifty-option-data-ai-chat.js'
+    'resources/js/option-chain/index.js'
 ])
-
-
 </x-app-layout>
 
 

@@ -4,7 +4,6 @@ import Alpine from 'alpinejs';
 
 // KEEP THESE
 import './chart.js';
-import './chatbox.js';
 
 // NEW MODULAR OPTION CHAIN
 import './option-chain/index';

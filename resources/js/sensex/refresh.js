@@ -187,6 +187,22 @@ window._doChainRefresh = async function(){
                         'td:nth-child(2) div'
                     );
 
+                // if(strikeCell){
+
+                //     strikeCell.innerHTML = `
+                    
+
+                //         ${
+                //             strike === parseInt(j.atm)
+
+                //             ? '<span class="text-orange-600">🔵</span>'
+
+                //             : ''
+                //         }
+
+                //         ${strike.toLocaleString('en-IN')}
+                //     `;
+                // }
                 if(strikeCell){
 
                     strikeCell.innerHTML = `
@@ -201,6 +217,21 @@ window._doChainRefresh = async function(){
 
                         ${strike.toLocaleString('en-IN')}
                     `;
+
+                    strikeCell.style.cursor = 'pointer';
+
+                    strikeCell.onclick = () => {
+
+                        if(typeof window.openSensexChart === 'function'){
+
+                            window.openSensexChart({
+
+                                strike,
+
+                                expiry: G.expiry
+                            });
+                        }
+                    };
                 }
             });
 

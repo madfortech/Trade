@@ -375,6 +375,44 @@
 </div>
 
 @vite(['resources/js/sensex-option-data.js'])
+<!-- SENSEX CHART MODAL -->
+    <div
+        id="sensexChartModal"
+        class="hidden fixed inset-0 z-50 bg-black/70"
+    >
+
+        <div
+            class="bg-white w-[95%] h-[90vh] mx-auto mt-6 rounded-xl p-4"
+        >
+
+            <div class="flex justify-between mb-3">
+
+                <h2
+                    id="sensexChartTitle"
+                    class="font-bold text-lg"
+                >
+                    SENSEX CHART
+                </h2>
+
+                <button
+                    onclick="
+                        document
+                            .getElementById('sensexChartModal')
+                            .classList.add('hidden')
+                    "
+                >
+                    ✕
+                </button>
+
+            </div>
+
+            <div
+                id="sensexChartContainer"
+                style="height:500px;"
+            ></div>
+
+        </div>
+    </div>
 
 </x-app-layout>
 

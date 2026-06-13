@@ -1,5 +1,5 @@
 <?php
-
+// detel filet after testing
 namespace App\Http\Controllers;
 
 use App\Services\AIAnalysis\CandleAnalysisService;
@@ -108,6 +108,7 @@ class AIAnalysisController extends Controller
 
     public function niftyChat(Request $request): JsonResponse
     {
+        
         try {
 
             if (!$this->groq->hasApiKey()) {

@@ -52,8 +52,7 @@ class NiftyAnalysisController extends Controller
 
             [$systemPrompt, $userPrompt] =
                 $this->prompts
-                    ->nifty()
-                    ->analyze(
+                    ->niftyAnalyze(
                         $interval,
                         $currentPrice,
                         $support,
@@ -113,10 +112,9 @@ class NiftyAnalysisController extends Controller
                 $this->candleAnalysis
                     ->calcSupportResistance($candles);
 
-            [$systemPrompt, $userPrompt] =
+           [$systemPrompt, $userPrompt] =
                 $this->prompts
-                    ->nifty()
-                    ->chat(
+                    ->niftyChat(
                         $interval,
                         $this->candleAnalysis->formatLevel($levels['current']),
                         $this->candleAnalysis->formatLevel($levels['support']),

@@ -197,6 +197,10 @@ window.changeExpiry = function (val) {
     window.location.href = (window.OPTION_CHAIN_ROUTE || '/angel/nifty/option-chain') + '?expiry=' + val;
 };
 
+window.changeNiftyExpiry = function (val) {
+    window.location.href = '/angel/option-data?expiry=' + val;
+};
+
 window.openTVChart = function (sym) {
     window.open(`https://in.tradingview.com/chart/?symbol=${sym}`, '_blank');
 };

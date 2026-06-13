@@ -21,7 +21,7 @@ export async function sendChat() {
 
     try {
 
-        const res = await fetch('/angel/chart-chat', {
+        const res = await fetch('/angel/nifty-ai-chat', {
 
             method: 'POST',
 
@@ -30,10 +30,24 @@ export async function sendChat() {
                 'X-CSRF-TOKEN': _csrf(),
             },
 
+            // body: JSON.stringify({
+            //     message: text,
+            //     strike: window._modalStrike,
+            //     side: window._modalSide,
+            // }),
             body: JSON.stringify({
                 message: text,
-                strike: window._modalStrike,
-                side: window._modalSide,
+
+                interval: window._curInterval || '5m',
+
+                candles: (window._lastCandles || []).map(c => [
+                    c.time,
+                    c.open,
+                    c.high,
+                    c.low,
+                    c.close,
+                    c.volume || 0
+                ])
             }),
         });
 

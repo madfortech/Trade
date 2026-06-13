@@ -1,96 +1,202 @@
 'use strict';
 
-import { _csrf, _el, _esc } from '../utils';
-import { renderAI } from './ai-render';
+import {
+    _csrf,
+    _el,
+    _esc
+} from '../utils';
+
+import {
+    renderAI
+} from './ai-render';
 
 export async function runAIAnalysis() {
-
-    if (window._aiAnalyzing) return;
+    
+    if (window._aiAnalyzing) {
+        return;
+    }
 
     window._aiAnalyzing = true;
 
-    const btn    = _el('aiAnalyzeBtn');
-    const btnTxt = _el('aiAnalyzeBtnTxt');
+    const btn =
+        _el('aiAnalyzeBtn');
 
-    if (btn) {
-        btn.style.opacity = '.5';
+    const waiting =
+        _el('aiWaiting');
+
+    const skeleton =
+        _el('aiSkeleton');
+
+    const verdict =
+        _el('aiVerdictArea');
+
+    // RESET UI
+    if (waiting) {
+        waiting.style.display = 'none';
     }
 
-    if (btnTxt) {
-        btnTxt.textContent = '⏳ Analyzing...';
+    if (verdict) {
+        verdict.style.display = 'none';
+    }
+
+    // SHOW LOADER
+    if (skeleton) {
+
+        skeleton.classList.remove(
+            'hidden'
+        );
+
+        skeleton.style.display =
+            'flex';
+    }
+
+    // BUTTON
+    if (btn) {
+
+        btn.disabled = true;
+
+        btn.style.opacity = '.5';
+
+        btn.innerHTML =
+            '⏳ Analyzing...';
     }
 
     try {
 
-        const candles = (window._lastCandles || []).slice(-30);
+        const candles =
+            (
+                window._lastCandles || []
+            ).slice(-30);
+
+        if (!candles.length) {
+
+            throw new Error(
+                'Candles not loaded yet'
+            );
+        }
 
         const interval =
-            document.querySelector('[data-iv].bg-indigo-600')
-                ?.dataset?.iv || 'FIVE_MINUTE';
+            document
+                .querySelector(
+                    '[data-iv].bg-indigo-600'
+                )
+                ?.dataset?.iv
+            || 'FIVE_MINUTE';
 
-        const res = await fetch('/angel/nifty-ai-analyze', {
-            method: 'POST',
+        // GROQ BACKEND ONLY
+        const res =
+            await fetch(
+                '/angel/nifty-ai-analyze',
+                {
+                    method: 'POST',
 
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': _csrf(),
-            },
+                    headers: {
 
-            body: JSON.stringify({
-                strike: window._modalStrike,
-                side: window._modalSide,
-                label: window._modalLabel,
-                source: 'Chart',
-                isAuto: false,
-                candles,
-                interval,
-            }),
-        });
+                        'Content-Type':
+                            'application/json',
 
-        const json = await res.json();
+                        'X-CSRF-TOKEN':
+                            _csrf(),
+                    },
 
-        if (!json.success || !json.data) {
+                    body: JSON.stringify({
 
-        let msg = 'AI service temporarily unavailable';
+                        strike:
+                            window._modalStrike,
 
-        if (json.message) {
+                        side:
+                            window._modalSide,
 
-            const m = json.message.toLowerCase();
+                        label:
+                            window._modalLabel,
 
-            if (m.includes('rate limit')) {
+                        source:
+                            'Chart',
 
-                msg = 'AI server busy — retry shortly';
+                        isAuto:
+                            false,
 
-            } else if (m.includes('quota')) {
+                        candles,
 
-                msg = 'Daily AI quota exhausted';
+                        interval,
+                    }),
+                }
+            );
 
-            } else if (m.includes('timeout')) {
+        const json =
+            await res.json();
 
-                msg = 'AI request timeout';
+        if (
+            !json.success ||
+            !json.data
+        ) {
 
-            } else if (m.includes('404')) {
-
-                msg = 'AI endpoint not found';
-
-            } else if (m.includes('500')) {
-
-                msg = 'Internal AI server error';
-            }
+            throw new Error(
+                json.message ||
+                'AI failed'
+            );
         }
 
-        throw new Error(msg);
+        // HIDE LOADER
+        if (skeleton) {
+
+            skeleton.classList.add(
+                'hidden'
+            );
+
+            skeleton.style.display =
+                'none';
         }
 
-        renderAI(json.data);
+        // SHOW RESULT
+        if (verdict) {
 
-        } catch (err) {
+            verdict.style.display =
+                'block';
+        }
 
-        const waiting = _el('aiWaiting');
+        renderAI(
+            json.data
+        );
 
+    } catch (err) {
+
+        console.error(
+            'AI ANALYSIS ERROR:',
+            err
+        );
+
+        // HIDE LOADER
+        if (skeleton) {
+
+            skeleton.classList.add(
+                'hidden'
+            );
+
+            skeleton.style.display =
+                'none';
+        }
+
+        // SHOW ERROR
         if (waiting) {
-            waiting.innerHTML =
-                `<span style="color:#dc2626;">❌ ${_esc(err.message)}</span>`;
+
+            waiting.style.display =
+                'flex';
+
+            waiting.innerHTML = `
+                <div
+                    style="
+                        color:#dc2626;
+                        font-size:12px;
+                        text-align:center;
+                        line-height:1.6;
+                    "
+                >
+
+                    ❌ ${_esc(err.message)}
+
+                </div>
+            `;
         }
 
     } finally {
@@ -98,11 +204,13 @@ export async function runAIAnalysis() {
         window._aiAnalyzing = false;
 
         if (btn) {
-            btn.style.opacity = '1';
-        }
 
-        if (btnTxt) {
-            btnTxt.textContent = '🔄 Re-Analyze';
+            btn.disabled = false;
+
+            btn.style.opacity = '1';
+
+            btn.innerHTML =
+                '⚡ Analyze';
         }
     }
 }

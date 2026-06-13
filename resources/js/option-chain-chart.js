@@ -131,7 +131,10 @@ function _toOHLC(raw) {
                         return null;
                     }
 
-                    timestamp = Math.floor(d.getTime() / 1000);
+                    timestamp =
+                        Math.floor(
+                            d.getTime() / 1000
+                        ) + (5.5 * 60 * 60);
                 } else {
                     // Already a numeric timestamp
                     timestamp = parseInt(c[0]);
@@ -193,15 +196,45 @@ function _createChart() {
             scaleMargins: { top: 0.1, bottom: 0.1 },
         },
         timeScale: {
-            borderColor:    '#e2e8f0',
-            timeVisible:    true,
-            secondsVisible: false,
-            rightOffset:    5,
-            barSpacing:     8,
-            minBarSpacing:  2,
-            fixLeftEdge:    false,
-            lockVisibleTimeRangeOnResize: true,
+        borderColor: '#e2e8f0',
+
+        timeVisible: true,
+
+        secondsVisible: false,
+
+        rightOffset: 5,
+
+        barSpacing: 8,
+
+        minBarSpacing: 2,
+
+        fixLeftEdge: false,
+
+        lockVisibleTimeRangeOnResize: true,
+
+        tickMarkFormatter: (
+            time,
+            tickMarkType,
+            locale
+        ) => {
+
+            const date =
+                new Date(time * 1000);
+
+            return date.toLocaleTimeString(
+                'en-IN',
+                {
+                    timeZone: 'Asia/Kolkata',
+
+                    hour: '2-digit',
+
+                    minute: '2-digit',
+
+                    hour12: false,
+                }
+            );
         },
+    },
     });
 
     const ro = new ResizeObserver(entries => {
@@ -398,7 +431,7 @@ async function fetchAndRender(token, label, exchange, peToken, strike, side, exp
 
     try {
         const raw = await _fetchCandles(token, exchange, interval, expiry);
-        if (!raw || !raw.length) throw new Error('Koi data nahi mila. Market band ho sakta hai ya symbol galat hai.');
+        if (!raw || !raw.length) throw new Error('No data available.');
 
         const ohlcData = _toOHLC(raw);
         if (!ohlcData.length) throw new Error('Candle data empty — timestamp parse error.');
@@ -407,7 +440,9 @@ async function fetchAndRender(token, label, exchange, peToken, strike, side, exp
 
         // ── Build chart ────────────────────────────────────────────────────
         _chart = _createChart();
-        if (!_chart) throw new Error('Chart container nahi mila.');
+        window._chart = _chart;
+     
+        if (!_chart) throw new Error('Chart container not found.');
 
         _compareMode = false;
         _peSeries    = null;

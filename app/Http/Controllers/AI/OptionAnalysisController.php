@@ -71,4 +71,6 @@ class OptionAnalysisController extends Controller
             ], 500);
         }
     }
+
+    
 }
