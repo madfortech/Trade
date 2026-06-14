@@ -56,5 +56,6 @@
         {{-- ✅ Quill JS --}}
         <script src="https://cdn.jsdelivr.net/npm/quill@1.3.6/dist/quill.js"></script>
 
+        
     </body>
 </html>

@@ -260,23 +260,23 @@
             <div class="flex items-center gap-2">
 
                 <!-- INTERVAL -->
-                <button class="iv-btn px-3 py-1 rounded bg-indigo-600 text-white text-xs"
-                        data-iv="THREE_MINUTE"
-                        onclick="changeInterval('THREE_MINUTE')">
-                    3m
-                </button>
+		<button class="iv-btn px-3 py-1 rounded bg-indigo-600 text-white text-xs"
+        		data-iv="FIVE_MINUTE"
+        		onclick="changeInterval('FIVE_MINUTE')">
+    			5m
+		</button>
 
-                <button class="iv-btn px-3 py-1 rounded bg-gray-100 text-gray-500 text-xs"
-                        data-iv="FIVE_MINUTE"
-                        onclick="changeInterval('FIVE_MINUTE')">
-                    5m
-                </button>
+		<button class="iv-btn px-3 py-1 rounded bg-gray-100 text-gray-500 text-xs"
+        		data-iv="ONE_HOUR"
+        		onclick="changeInterval('ONE_HOUR')">
+    			1H
+		</button>
 
-                <button class="iv-btn px-3 py-1 rounded bg-gray-100 text-gray-500 text-xs"
-                        data-iv="FIFTEEN_MINUTE"
-                        onclick="changeInterval('FIFTEEN_MINUTE')">
-                    15m
-                </button>
+		<button class="iv-btn px-3 py-1 rounded bg-gray-100 text-gray-500 text-xs"
+        		data-iv="ONE_DAY"
+        		onclick="changeInterval('ONE_DAY')">
+    			1D
+		</button>
 
                 <!-- CHART TYPE -->
                 <button id="btnCandle"
@@ -481,7 +481,6 @@
 </div>
 
 <!-- LIBRARIES -->
-<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 

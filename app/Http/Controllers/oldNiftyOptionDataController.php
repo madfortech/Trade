@@ -1,5 +1,5 @@
 <?php
-// delete this file after testing
+
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
@@ -171,7 +171,11 @@ class NiftyOptionDataController extends Controller
     // ─── Historical Candle Data (AJAX) ────────────────────────────────────────
     public function getCandleData(Request $request)
     {
-        Log::info('============ CANDLE REQUEST START ============');
+        Log::info([
+            'token'    => $request->get('token'),
+            'exchange' => $request->get('exchange', 'NSE'),
+            'interval' => $request->get('interval', 'FIVE_MINUTE'),
+        ]);
 
         try {
             $token       = session('angel_jwt');
@@ -185,7 +189,15 @@ class NiftyOptionDataController extends Controller
                 return response()->json(['success' => false, 'message' => 'Symbol token missing', 'data' => []]);
             }
 
-            $data = $this->fetchHistoricalCandles($token, $symbolToken, 'NFO', $interval);
+            //$data = $this->fetchHistoricalCandles($token, $symbolToken, 'NFO', $interval);
+            $exchange = $request->get('exchange', 'NSE');
+
+            $data = $this->fetchHistoricalCandles(
+                $token,
+                $symbolToken,
+                $exchange,
+                $interval
+            );
 
             if (!empty($data)) {
                 Log::info('✅ Historical data found', ['candles' => count($data)]);
@@ -302,55 +314,135 @@ class NiftyOptionDataController extends Controller
                      && (int)$now->format('Hi') >= 915
                      && (int)$now->format('Hi') <= 1530;
 
-        for ($daysBack = 0; $daysBack <= 4; $daysBack++) {
+        // for ($daysBack = 0; $daysBack <= 4; $daysBack++) {
+        //     try {
+        //          if ($interval === 'ONE_DAY') {
+
+        //             $fromDate = Carbon::now('Asia/Kolkata')
+        //                 ->subDays(30)
+        //                 ->format('Y-m-d H:i');
+
+        //             $currentToDate = Carbon::now('Asia/Kolkata')
+        //                 ->format('Y-m-d H:i');
+
+        //         } elseif ($interval === 'ONE_HOUR') {
+
+        //             $fromDate = Carbon::now('Asia/Kolkata')
+        //                 ->subDays(10)
+        //                 ->format('Y-m-d H:i');
+
+        //             $currentToDate = Carbon::now('Asia/Kolkata')
+        //                 ->format('Y-m-d H:i');
+
+        //         } else {
+
+        //             $fromCarbon = Carbon::now('Asia/Kolkata')->subDays($daysBack);
+
+        //             while ($fromCarbon->isWeekend()) {
+        //                 $fromCarbon->subDay();
+        //             }
+
+        //             $fromDate = $fromCarbon->copy()
+        //                 ->setTime(9, 15, 0)
+        //                 ->format('Y-m-d H:i');
+
+        //             $currentToDate = ($daysBack === 0 && $isMarketOpen)
+        //                 ? $now->format('Y-m-d H:i')
+        //                 : $fromCarbon->copy()
+        //                     ->setTime(15, 30, 0)
+        //                     ->format('Y-m-d H:i');
+        //         }
+
+        //         Log::info("🔄 Candle attempt #{$daysBack}", [
+        //             'from'  => $fromDate,
+        //             'to'    => $currentToDate,
+        //             'token' => $symbolToken,
+        //         ]);
+
+        //         $response = Http::timeout(15)
+        //             ->withHeaders($this->getHeaders($token))
+        //             ->post($this->baseUrl . "/rest/secure/angelbroking/historical/v1/getCandleData", [
+        //                 'exchange'    => $exchange,
+        //                 'symboltoken' => $symbolToken,
+        //                 'interval'    => $interval,
+        //                 'fromdate'    => $fromDate,
+        //                 'todate'      => $currentToDate,
+        //             ]);
+
+        //         // $json = $response->json();
+        //         // $data = $json['data'] ?? [];
+
+        //         // Log::info("Attempt #{$daysBack} result", [
+        //         //     'status'  => $json['status']  ?? 'unknown',
+        //         //     'message' => $json['message'] ?? '',
+        //         //     'candles' => is_array($data) ? count($data) : 0,
+        //         // ]);
+
+        //         $json = $response->json();
+
+        //         Log::info("FULL ANGEL RESPONSE", [
+        //             'exchange' => $exchange,
+        //             'token'    => $symbolToken,
+        //             'interval' => $interval,
+        //             'response' => $json,
+        //         ]);
+
+        //         $data = $json['data'] ?? [];
+
+        //         Log::info("Attempt #{$daysBack} result", [
+        //             'status'  => $json['status']  ?? 'unknown',
+        //             'message' => $json['message'] ?? '',
+        //             'candles' => is_array($data) ? count($data) : 0,
+        //         ]);
+
+        //         if (!empty($data) && is_array($data) && count($data) >= 1) {
+        //             Log::info("✅ Got candles on attempt #{$daysBack}", ['count' => count($data)]);
+        //             return $data;
+        //         }
+
+        //     } catch (\Exception $e) {
+        //         Log::warning("Attempt #{$daysBack} exception: " . $e->getMessage());
+        //         continue;
+        //     }
+        // }
+
+        for ($daysBack = 0; $daysBack <= 0; $daysBack++) {
             try {
-                $fromCarbon = Carbon::now('Asia/Kolkata')->subDays($daysBack);
-                while ($fromCarbon->isWeekend()) { $fromCarbon->subDay(); }
 
-                $fromDate = $fromCarbon->copy()->setTime(9, 15, 0)->format('Y-m-d H:i');
+                if ($interval === 'ONE_DAY') {
 
-                $currentToDate = ($daysBack === 0 && $isMarketOpen)
-                    ? $now->format('Y-m-d H:i')
-                    : $fromCarbon->copy()->setTime(15, 30, 0)->format('Y-m-d H:i');
+                    $fromDate = Carbon::now('Asia/Kolkata')
+                        ->subDays(365)
+                        ->format('Y-m-d H:i');
 
-                Log::info("🔄 Candle attempt #{$daysBack}", [
-                    'from'  => $fromDate,
-                    'to'    => $currentToDate,
-                    'token' => $symbolToken,
-                ]);
+                } elseif ($interval === 'ONE_HOUR') {
 
-                $response = Http::timeout(15)
-                    ->withHeaders($this->getHeaders($token))
-                    ->post($this->baseUrl . "/rest/secure/angelbroking/historical/v1/getCandleData", [
-                        'exchange'    => $exchange,
-                        'symboltoken' => $symbolToken,
-                        'interval'    => $interval,
-                        'fromdate'    => $fromDate,
-                        'todate'      => $currentToDate,
-                    ]);
+                    $fromDate = Carbon::now('Asia/Kolkata')
+                        ->subDays(120)
+                        ->format('Y-m-d H:i');
 
-                $json = $response->json();
-                $data = $json['data'] ?? [];
+                } else {
 
-                Log::info("Attempt #{$daysBack} result", [
-                    'status'  => $json['status']  ?? 'unknown',
-                    'message' => $json['message'] ?? '',
-                    'candles' => is_array($data) ? count($data) : 0,
-                ]);
-
-                if (!empty($data) && is_array($data) && count($data) >= 1) {
-                    Log::info("✅ Got candles on attempt #{$daysBack}", ['count' => count($data)]);
-                    return $data;
+                    $fromDate = Carbon::now('Asia/Kolkata')
+                        ->subDays(90)
+                        ->setTime(9, 15, 0)
+                        ->format('Y-m-d H:i');
                 }
 
-            } catch (\Exception $e) {
-                Log::warning("Attempt #{$daysBack} exception: " . $e->getMessage());
-                continue;
+                $currentToDate = Carbon::now('Asia/Kolkata')
+                    ->format('Y-m-d H:i');
+
+                // existing API call code...
+            }
+            catch (\Exception $e) {
+                ...
             }
         }
 
         return [];
     }
+
+  
 
 
     // ══════════════════════════════════════════════════════════════════════════

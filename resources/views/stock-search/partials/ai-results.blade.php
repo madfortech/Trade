@@ -1,0 +1,3 @@
+<div id="results" class="mt-4 text-gray-500 border border-gray-200 rounded-lg p-4">
+    Search a stock... 
+</div>

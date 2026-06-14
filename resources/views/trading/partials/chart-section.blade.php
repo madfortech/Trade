@@ -1,7 +1,7 @@
 <div style="background:#0d1526; border:1px solid #1a2740; border-radius:14px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,.04);">
     <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 16px; border-bottom:1px solid #1a2740;">
         <div style="display:flex; gap:6px;">
-            @foreach(['3m'=>'3M','5m'=>'5M', '15m'=>'15M', '1h'=>'1H','1d'=>'1D'] as $tf=>$lbl)
+            @foreach(['5m'=>'5M', '1h'=>'1H', '1d'=>'1D'] as $tf=>$lbl)
                 <button onclick="changeInterval('{{ $tf }}')"
                     class="nt-interval-btn {{ $tf==='5m'?'active':'' }}"
                     data-interval="{{ $tf }}"

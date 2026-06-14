@@ -1,5 +1,5 @@
 import './bootstrap';
-
+import './stock-search/main';
 import Alpine from 'alpinejs';
 
 // KEEP THESE

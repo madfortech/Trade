@@ -7,6 +7,7 @@ use App\Http\Controllers\NiftyController;
 use App\Http\Controllers\NiftyOptionDataController;
 use App\Http\Controllers\AIAnalysisController;
 use App\Http\Controllers\SensexOptionDataController;
+use App\Http\Controllers\SearchController;
 use Illuminate\Support\Facades\Cache;
 
 /*
@@ -67,6 +68,12 @@ Route::middleware(['angel.auth'])->group(function () {
             Cache::put('sensex_spot_last', 78918.9, now()->addHours(8));
             return response()->json(['done' => true, 'spot_set' => 78918.9]);
         });
+
+        // --- SEARCH ---
+        Route::get('/search', [SearchController::class, 'index'])->name('search.index');
+        // Search stock API
+        Route::get('/search-stock', [SearchController::class, 'search'])
+            ->name('angel.search.stock');
     });
 });
 

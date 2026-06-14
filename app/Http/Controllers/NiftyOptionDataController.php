@@ -185,9 +185,16 @@ class NiftyOptionDataController extends Controller
                 return response()->json(['success' => false, 'message' => 'Symbol token missing', 'data' => []]);
             }
 
-            $data = $this->fetchHistoricalCandles($token, $symbolToken, 'NFO', $interval);
+            //$data = $this->fetchHistoricalCandles($token, $symbolToken, 'NFO', $interval);
+            $exchange = $request->get('exchange', 'NSE');
 
-            if (!empty($data)) {
+            $data = $this->fetchHistoricalCandles(
+                $token,
+                $symbolToken,
+                $exchange,
+                $interval
+            );
+                        if (!empty($data)) {
                 Log::info('✅ Historical data found', ['candles' => count($data)]);
                 return response()->json([
                     'success' => true,

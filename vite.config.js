@@ -11,7 +11,7 @@ input: [
 
             // Existing Files
             'resources/js/chart.js',
-            'resources/js/chatbox.js',
+           // 'resources/js/chatbox.js',
 
             // Option Chain
             'resources/js/option-chain.js',

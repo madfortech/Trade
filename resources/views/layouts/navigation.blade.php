@@ -6,9 +6,12 @@
 
     <div class="w-full block flex-grow lg:flex lg:items-center lg:w-auto">
 
-        <div class="text-sm lg:flex-grow lg:flex justify-center py-4 bg-purple-100 sm:rounded-full shadow-lg">
-            <a href="{{('/') }}" class="block mt-4 lg:inline-block lg:mt-0 text-gray-800 hover:text-blue-600 mr-4">
+        <div class="text-sm lg:flex-grow lg:flex justify-center py-4">
+            <a href="{{ route('angel.home') }}" class="block mt-4 lg:inline-block lg:mt-0 text-gray-800 hover:text-blue-600 mr-4">
                 Home
+            </a>
+            <a href="{{ route('angel.search.index') }}" class="block mt-4 lg:inline-block lg:mt-0 text-gray-800 hover:text-blue-600 mr-4">
+                Search
             </a>
             <a href="{{ route('faq') }}" class="block mt-4 lg:inline-block lg:mt-0 text-gray-800 
                 hover:text-blue-600 mr-4">

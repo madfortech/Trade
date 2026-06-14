@@ -56,12 +56,7 @@
 
             <!-- End Sensex -->
 
-            <!-- Crude Oil -->
-            <div class="py-2">
-              
-             
-            </div>
-            <!-- End Crude Oil -->
+            
           </div>
 
           <div class="lg:grid grid-cols-3 gap-4 my-4">
