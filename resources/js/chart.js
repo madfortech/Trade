@@ -52,6 +52,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // 2. Fetch Historical Data
     window.fetchHistoricalData = async function(interval = '5m') {
+        const startTime = performance.now();
         if (window.showChartLoader) window.showChartLoader(interval);
         
         try {
@@ -75,6 +76,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 if(formatted.length > 0) {
                     lastKnownCandle = formatted[formatted.length - 1];
                 }
+
+                const loadTime = ((performance.now() - startTime) / 1000).toFixed(2);
+
+                const statusEl = document.getElementById('chart-status');
+
+                if (statusEl) {
+                    statusEl.textContent =
+                        `✅ ${formatted.length} candles loaded · ⏱ ${loadTime}s`;
+                }
+
             }
         } catch (err) {
             console.error("Chart Load Error:", err);

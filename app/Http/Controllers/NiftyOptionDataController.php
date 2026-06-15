@@ -171,12 +171,24 @@ class NiftyOptionDataController extends Controller
     // ─── Historical Candle Data (AJAX) ────────────────────────────────────────
     public function getCandleData(Request $request)
     {
+        
         Log::info('============ CANDLE REQUEST START ============');
 
         try {
             $token       = session('angel_jwt');
             $symbolToken = $request->get('token');
-            $interval    = $request->get('interval', 'FIVE_MINUTE');
+            $requestedInterval = $request->get('interval', '5m');
+
+            $intervalMap = [
+                '1m'  => 'ONE_MINUTE',
+                '3m'  => 'THREE_MINUTE',
+                '5m'  => 'FIVE_MINUTE',
+                '15m' => 'FIFTEEN_MINUTE',
+                '1h'  => 'ONE_HOUR',
+                '1d'  => 'ONE_DAY',
+            ];
+
+            $interval = $intervalMap[$requestedInterval] ?? 'FIVE_MINUTE';
 
             if (!$token) {
                 return response()->json(['success' => false, 'message' => 'Please re-login to Angel One', 'data' => []]);
@@ -186,21 +198,37 @@ class NiftyOptionDataController extends Controller
             }
 
             //$data = $this->fetchHistoricalCandles($token, $symbolToken, 'NFO', $interval);
-            $exchange = $request->get('exchange', 'NSE');
+            // $exchange = $request->get('exchange', 'NSE');
 
-            $data = $this->fetchHistoricalCandles(
-                $token,
-                $symbolToken,
-                $exchange,
-                $interval
+            // $data = $this->fetchHistoricalCandles(
+            //     $token,
+            //     $symbolToken,
+            //     $exchange,
+            //     $interval
+            // );
+            $exchange = $request->get('exchange', 'NFO');
+
+            $cacheKey = "candles_{$exchange}_{$symbolToken}_{$interval}";
+
+            $data = Cache::remember(
+                $cacheKey,
+                now()->addSeconds(30),
+                function () use ($token, $symbolToken, $exchange, $interval) {
+                    return $this->fetchHistoricalCandles(
+                        $token,
+                        $symbolToken,
+                        $exchange,
+                        $interval
+                    );
+                }
             );
-                        if (!empty($data)) {
-                Log::info('✅ Historical data found', ['candles' => count($data)]);
-                return response()->json([
-                    'success' => true,
-                    'data'    => $data,
-                    'source'  => 'historical_api',
-                    'meta'    => ['candles' => count($data), 'interval' => $interval],
+            if (!empty($data)) {
+                    Log::info('✅ Historical data found', ['candles' => count($data)]);
+                    return response()->json([
+                        'success' => true,
+                        'data'    => $data,
+                        'source'  => 'historical_api',
+                        'meta'    => ['candles' => count($data), 'interval' => $interval],
                 ]);
             }
 
@@ -300,64 +328,309 @@ class NiftyOptionDataController extends Controller
     //     return [];
     // }
 
-        // ─── Fetch Historical Candles (dynamic dates, 5 attempts) ────────────────
+        // ─── Fetch Historical Candles (dynamic dates, 5 attempts) 6/14/2026 ────────────────
+    // private function fetchHistoricalCandles($token, $symbolToken, $exchange, $interval): array
+    // {
+    //     $now = Carbon::now('Asia/Kolkata');
+
+    //     $isMarketOpen = $now->isWeekday()
+    //                  && (int)$now->format('Hi') >= 915
+    //                  && (int)$now->format('Hi') <= 1530;
+
+    //     for ($daysBack = 0; $daysBack <= 4; $daysBack++) {
+    //         try {
+    //             $fromCarbon = Carbon::now('Asia/Kolkata')->subDays($daysBack);
+    //             while ($fromCarbon->isWeekend()) { $fromCarbon->subDay(); }
+
+    //             $fromDate = $fromCarbon->copy()->setTime(9, 15, 0)->format('Y-m-d H:i');
+
+    //             $currentToDate = ($daysBack === 0 && $isMarketOpen)
+    //                 ? $now->format('Y-m-d H:i')
+    //                 : $fromCarbon->copy()->setTime(15, 30, 0)->format('Y-m-d H:i');
+
+    //             Log::info("🔄 Candle attempt #{$daysBack}", [
+    //                 'from'  => $fromDate,
+    //                 'to'    => $currentToDate,
+    //                 'token' => $symbolToken,
+    //             ]);
+
+    //             $response = Http::timeout(15)
+    //                 ->withHeaders($this->getHeaders($token))
+    //                 ->post($this->baseUrl . "/rest/secure/angelbroking/historical/v1/getCandleData", [
+    //                     'exchange'    => $exchange,
+    //                     'symboltoken' => $symbolToken,
+    //                     'interval'    => $interval,
+    //                     'fromdate'    => $fromDate,
+    //                     'todate'      => $currentToDate,
+    //                 ]);
+
+    //             $json = $response->json();
+    //             $data = $json['data'] ?? [];
+
+    //             Log::info("Attempt #{$daysBack} result", [
+    //                 'status'  => $json['status']  ?? 'unknown',
+    //                 'message' => $json['message'] ?? '',
+    //                 'candles' => is_array($data) ? count($data) : 0,
+    //             ]);
+
+    //             if (!empty($data) && is_array($data) && count($data) >= 1) {
+    //                 Log::info("✅ Got candles on attempt #{$daysBack}", ['count' => count($data)]);
+    //                 return $data;
+    //             }
+
+    //         } catch (\Exception $e) {
+    //             Log::warning("Attempt #{$daysBack} exception: " . $e->getMessage());
+    //             continue;
+    //         }
+    //     }
+
+    //     return [];
+    // }
+
+    //    private function fetchHistoricalCandles($token, $symbolToken, $exchange, $interval): array
+    // {
+ 
+    //     $now = Carbon::now('Asia/Kolkata');
+
+    //     $isMarketOpen = $now->isWeekday()
+    //                  && (int)$now->format('Hi') >= 915
+    //                  && (int)$now->format('Hi') <= 1530;
+
+    //     for ($daysBack = 0; $daysBack <= 4; $daysBack++) {
+    //         try {
+    //             $fromCarbon = Carbon::now('Asia/Kolkata')->subDays($daysBack);
+    //             while ($fromCarbon->isWeekend()) { $fromCarbon->subDay(); }
+
+    //             $fromDate = $fromCarbon->copy()->setTime(9, 15, 0)->format('Y-m-d H:i');
+
+    //             $currentToDate = ($daysBack === 0 && $isMarketOpen)
+    //                 ? $now->format('Y-m-d H:i')
+    //                 : $fromCarbon->copy()->setTime(15, 30, 0)->format('Y-m-d H:i');
+
+    //             Log::info("🔄 Candle attempt #{$daysBack}", [
+    //                 'from'  => $fromDate,
+    //                 'to'    => $currentToDate,
+    //                 'token' => $symbolToken,
+    //             ]);
+
+    //             $response = Http::timeout(15)
+    //                 ->withHeaders($this->getHeaders($token))
+    //                 ->post($this->baseUrl . "/rest/secure/angelbroking/historical/v1/getCandleData", [
+    //                     'exchange'    => $exchange,
+    //                     'symboltoken' => $symbolToken,
+    //                     'interval'    => $interval,
+    //                     'fromdate'    => $fromDate,
+    //                     'todate'      => $currentToDate,
+    //                 ]);
+
+    //             $json = $response->json();
+    //             $data = $json['data'] ?? [];
+
+    //             Log::info("Attempt #{$daysBack} result", [
+    //                 'status'  => $json['status']  ?? 'unknown',
+    //                 'message' => $json['message'] ?? '',
+    //                 'candles' => is_array($data) ? count($data) : 0,
+    //             ]);
+
+    //             if (!empty($data) && is_array($data) && count($data) >= 1) {
+    //                 Log::info("✅ Got candles on attempt #{$daysBack}", ['count' => count($data)]);
+    //                 return $data;
+    //             }
+
+    //         } catch (\Exception $e) {
+    //             Log::warning("Attempt #{$daysBack} exception: " . $e->getMessage());
+    //             continue;
+    //         }
+    //     }
+
+    //     return [];
+    // }
+
     private function fetchHistoricalCandles($token, $symbolToken, $exchange, $interval): array
     {
+        set_time_limit(300);
+        $allCandles = [];
+        $targetCandles = 1000;
+
+
         $now = Carbon::now('Asia/Kolkata');
 
-        $isMarketOpen = $now->isWeekday()
-                     && (int)$now->format('Hi') >= 915
-                     && (int)$now->format('Hi') <= 1530;
+        $currentDay = $now->copy();
+        $tradingDaysFetched = 0;
+        $maxTradingDays = 1; // ~6000 candles
 
-        for ($daysBack = 0; $daysBack <= 4; $daysBack++) {
+        while (
+            count($allCandles) < $targetCandles
+            && $tradingDaysFetched < $maxTradingDays
+        ) {
+
             try {
-                $fromCarbon = Carbon::now('Asia/Kolkata')->subDays($daysBack);
-                while ($fromCarbon->isWeekend()) { $fromCarbon->subDay(); }
 
-                $fromDate = $fromCarbon->copy()->setTime(9, 15, 0)->format('Y-m-d H:i');
+                if ($currentDay->isWeekend()) {
+                    $currentDay->subDay();
+                    continue;
+                }
 
-                $currentToDate = ($daysBack === 0 && $isMarketOpen)
-                    ? $now->format('Y-m-d H:i')
-                    : $fromCarbon->copy()->setTime(15, 30, 0)->format('Y-m-d H:i');
+                // $fromDate = $currentDay->copy()
+                //     ->setTime(9, 15, 0)
+                //     ->format('Y-m-d H:i');
 
-                Log::info("🔄 Candle attempt #{$daysBack}", [
-                    'from'  => $fromDate,
-                    'to'    => $currentToDate,
-                    'token' => $symbolToken,
+                // $toDate = $currentDay->copy()
+                //     ->setTime(15, 30, 0)
+                //     ->format('Y-m-d H:i');
+
+                $fromDate = Carbon::now('Asia/Kolkata')
+                    ->subMonths(2)
+                    ->format('Y-m-d H:i');
+
+                $toDate = Carbon::now('Asia/Kolkata')
+                    ->format('Y-m-d H:i');
+                    
+
+                Log::info('Fetching candles', [
+                    'date' => $currentDay->toDateString(),
+                    'from' => $fromDate,
+                    'to'   => $toDate,
                 ]);
 
                 $response = Http::timeout(15)
                     ->withHeaders($this->getHeaders($token))
-                    ->post($this->baseUrl . "/rest/secure/angelbroking/historical/v1/getCandleData", [
-                        'exchange'    => $exchange,
-                        'symboltoken' => $symbolToken,
-                        'interval'    => $interval,
-                        'fromdate'    => $fromDate,
-                        'todate'      => $currentToDate,
-                    ]);
+                    ->post(
+                        $this->baseUrl . '/rest/secure/angelbroking/historical/v1/getCandleData',
+                        [
+                            'exchange'    => $exchange,
+                            'symboltoken' => $symbolToken,
+                            'interval'    => $interval,
+                            'fromdate'    => $fromDate,
+                            'todate'      => $toDate,
+                        ]
+                    );
 
-                $json = $response->json();
-                $data = $json['data'] ?? [];
+                // $json = $response->json();
 
-                Log::info("Attempt #{$daysBack} result", [
-                    'status'  => $json['status']  ?? 'unknown',
-                    'message' => $json['message'] ?? '',
-                    'candles' => is_array($data) ? count($data) : 0,
-                ]);
+                // $data = $json['data'] ?? [];
+ 
 
-                if (!empty($data) && is_array($data) && count($data) >= 1) {
-                    Log::info("✅ Got candles on attempt #{$daysBack}", ['count' => count($data)]);
-                    return $data;
+                if ($response->status() === 403) {
+                    Log::warning('Angel Rate Limit Hit');
+                    sleep(30); // 30 seconds
+                    continue; // next attempt ya next day try karo
                 }
 
+
+
+                $json = $response->json();
+
+                Log::info('REQUEST PARAMS', [
+                    'exchange' => $exchange,
+                    'symboltoken' => $symbolToken,
+                    'interval' => $interval,
+                    'fromdate' => $fromDate,
+                    'todate' => $toDate,
+                ]);
+
+                Log::info('ANGEL FULL RESPONSE', $json);
+
+
+                Log::info('Historical API', [
+                    'count' => count($json['data'] ?? []),
+                    'status' => $response->status(),
+                ]);
+
+                if ($response->status() !== 200) {
+
+                    return [[
+                        'ERROR',
+                        'HTTP_' . $response->status(),
+                        $response->body()
+                    ]];
+                }
+
+                
+                $data = $json['data'] ?? [];
+
+                Log::info('Historical API RAW', [
+                    'count' => count($json['data'] ?? []),
+                    'first' => $json['data'][0][0] ?? null,
+                    'last'  => end($json['data'])[0] ?? null,
+                ]);
+                
+                if (!empty($data) && is_array($data)) {
+
+                    $allCandles = array_merge(
+                        $data,
+                        $allCandles
+                    );
+
+                    Log::info('Merged candles', [
+                        'date'  => $currentDay->toDateString(),
+                        'count' => count($allCandles),
+                    ]);
+                }
+
+                $tradingDaysFetched++;
+
+                $currentDay->subDay();
+
+                usleep(500000);
+
             } catch (\Exception $e) {
-                Log::warning("Attempt #{$daysBack} exception: " . $e->getMessage());
-                continue;
+
+                Log::warning('Candle fetch failed', [
+                    'date'  => $currentDay->toDateString(),
+                    'error' => $e->getMessage(),
+                ]);
+
+                $currentDay->subDay();
             }
         }
 
-        return [];
+        // Remove duplicate timestamps
+        $uniqueCandles = [];
+
+        foreach ($allCandles as $candle) {
+
+            if (!isset($candle[0])) {
+                continue;
+            }
+
+            $uniqueCandles[$candle[0]] = $candle;
+        }
+
+        $allCandles = array_values($uniqueCandles);
+
+        // Sort oldest -> newest
+        usort($allCandles, function ($a, $b) {
+            return strtotime($a[0]) <=> strtotime($b[0]);
+        });
+
+        Log::info('Before Slice', [
+            'count' => count($allCandles)
+        ]);
+
+        // Keep latest target candles
+        // $finalCandles = array_slice(
+        //     $allCandles,
+        //     -$targetCandles
+        // );
+        $finalCandles = $allCandles;
+
+        Log::info('Final candles', [
+            'total'  => count($finalCandles),
+            'unique' => count(
+                array_unique(
+                    array_column($finalCandles, 0)
+                )
+            ),
+            'first'  => $finalCandles[0][0] ?? null,
+            'last'   => end($finalCandles)[0] ?? null,
+        ]);
+
+        return $finalCandles;
+
+
     }
+
 
 
     // ══════════════════════════════════════════════════════════════════════════

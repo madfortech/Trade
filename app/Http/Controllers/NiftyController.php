@@ -97,8 +97,14 @@ class NiftyController extends Controller
             
             $apiInterval = $intervalMap[$interval] ?? 'FIVE_MINUTE';
             $toDate = date('Y-m-d H:i'); 
-            $daysBack = ($interval === '1d') ? 100 : 7; 
+            // $daysBack = ($interval === '1d') ? 100 : 7; 
+            $daysBack = match ($interval) {
+                '1d' => 2000,
+                '1h' => 400,
+                default => 60, // 5m
+            };
             $fromDate = date('Y-m-d 09:15', strtotime("-$daysBack days"));
+            //$fromDate = date('Y-m-d 09:15', strtotime("-7 days"));
 
             try {
                 $response = Http::withHeaders($this->prepareHeaders($token))
@@ -127,13 +133,21 @@ class NiftyController extends Controller
                     }
                     usort($formatted, fn($a, $b) => $a['time'] <=> $b['time']);
 
-                    return response()->json(['success' => true, 'candles' => $formatted]);
+                    //return response()->json(['success' => true, 'candles' => $formatted]);
+                    return response()->json([
+                        'success' => true,
+                        'count'   => count($formatted),
+                        'from'    => $fromDate,
+                        'to'      => $toDate,
+                        'candles' => $formatted,
+                    ]);
                 }
                 return response()->json(['success' => false, 'message' => 'No data']);
             } catch (\Exception $e) {
                 return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
             }
         }
+
 
     private function prepareHeaders($token) 
     {

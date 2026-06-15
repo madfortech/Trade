@@ -40,9 +40,22 @@
               <ul class="space-y-2">
                 <flux:heading size="xl" class="capitalize">Results</flux:heading>
 
-                @include('stock-search.partials.ai-results')
+                @include('stock-search.partials.results')
               </ul>
+
+              <div id="aiPanel" class="hidden border rounded-lg bg-white overflow-hidden">
+
+                <div class="px-4 py-3 border-b bg-slate-50">
+                  <flux:heading size="xl">
+                    AI Prediction
+                  </flux:heading>
+                </div>
+
+                @include('stock-search.partials.ai-results')
+
+              </div>
             </div>
+            
 
           </div>
 

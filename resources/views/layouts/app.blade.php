@@ -18,6 +18,8 @@
             .ql-editor { height: 300px; }
         </style>
 
+        
+
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @livewireStyles

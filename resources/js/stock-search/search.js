@@ -1,5 +1,17 @@
 'use strict';
 
+function resetAiPanel() {
+
+    document.getElementById('aiWaiting')
+        ?.style.setProperty('display', 'flex');
+
+    document.getElementById('aiSkeleton')
+        ?.classList.add('hidden');
+
+    document.getElementById('aiVerdictArea')
+        ?.style.setProperty('display', 'none');
+}
+
 window.searchStock = async function () {
 
     const symbol = document
@@ -50,15 +62,52 @@ window.searchStock = async function () {
             item.className =
                 'p-2 border rounded mb-2 cursor-pointer';
 
+            
             item.innerHTML = `
-                <strong>${stock.symbol}</strong>
-                <br>
-                ${stock.exchange}
+            <div class="flex justify-between items-center">
+                <div>
+                    <strong>${stock.symbol}</strong>
+                    <br>
+                    ${stock.exchange}
+                </div>
+
+                <div class="flex gap-1">
+                    <button class="tf-btn px-2 py-1 text-xs bg-blue-600 text-white rounded" data-tf="1d">1D</button>
+                    <button class="tf-btn px-2 py-1 text-xs bg-blue-600 text-white rounded" data-tf="1h">1H</button>
+                    <button class="tf-btn px-2 py-1 text-xs bg-blue-600 text-white rounded" data-tf="15m">15M</button>
+                    <button class="tf-btn px-2 py-1 text-xs bg-blue-600 text-white rounded" data-tf="5m">5M</button>
+                </div>
+            </div>
             `;
 
-            item.onclick = () =>
-                loadChart(stock);
 
+            item.querySelectorAll('.tf-btn').forEach(btn => {
+
+                btn.addEventListener('click', (e) => {
+
+                    e.stopPropagation();
+
+                    resetAiPanel();
+
+                    loadChart({
+                        ...stock,
+                        interval: btn.dataset.tf
+                    });
+                });
+
+            });
+
+            item.addEventListener('click', () => {
+
+                resetAiPanel();
+
+                loadChart({
+                    ...stock,
+                    interval: '5m'
+                });
+
+            });
+                    
             results.appendChild(item);
             console.log('Appended');
         });

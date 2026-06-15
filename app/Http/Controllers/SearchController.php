@@ -34,49 +34,27 @@ class SearchController extends Controller
 
         foreach ($master as $item) {
 
-            $exchange =
-                strtoupper($item['exch_seg'] ?? '');
-
-            if ($exchange !== 'NSE') {
+            if (strtoupper($item['exch_seg'] ?? '') !== 'NSE') {
                 continue;
             }
 
-            $symbol =
-                strtoupper($item['symbol'] ?? '');
+            $symbol = strtoupper($item['symbol'] ?? '');
 
-            if (!$symbol) {
-                continue;
-            }
-
-            $row = [
-                'symbol'   => $item['symbol'] ?? '',
-                'exchange' => $exchange,
-                'token'    => (string)($item['token'] ?? ''),
-            ];
-
-            // Exact equity match first
             if ($symbol === $query . '-EQ') {
-
-                $exactMatches[] = $row;
-
-                continue;
-            }
-
-            // Starts with query
-            if (str_starts_with($symbol, $query)) {
-
-                $partialMatches[] = $row;
-
-                continue;
-            }
-
-            // Contains query anywhere
-            if (str_contains($symbol, $query)) {
-
-                $partialMatches[] = $row;
+                return response()->json([
+                    'data' => [[
+                        'symbol'   => $item['symbol'],
+                        'exchange' => 'NSE',
+                        'token'    => (string)($item['token'] ?? ''),
+                    ]]
+                ]);
             }
         }
 
+        return response()->json([
+            'data' => []
+        ]);
+        
         $results = array_merge(
             $exactMatches,
             $partialMatches
